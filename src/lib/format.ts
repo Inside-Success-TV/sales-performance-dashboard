@@ -1,0 +1,33 @@
+export function formatDate(value: string | Date | null | undefined) {
+  if (!value) return "Date unavailable";
+
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+export function formatDateTime(value: string | Date | null | undefined) {
+  if (!value) return "Date unavailable";
+
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+export function truncate(value: string | null | undefined, max = 180) {
+  if (!value) return "";
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 1).trim()}...`;
+}
