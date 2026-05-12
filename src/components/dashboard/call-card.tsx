@@ -14,8 +14,8 @@ type CallCardProps = {
 
 export function CallCard({ call, compact = false }: CallCardProps) {
   return (
-    <Card className="rounded-lg shadow-sm transition-colors hover:border-primary/40">
-      <CardHeader className={compact ? "gap-2 p-4" : "gap-3"}>
+    <Card className="dashboard-card rounded-lg border-border/80 bg-card/95 transition-all hover:-translate-y-px hover:border-primary/40">
+      <CardHeader className={compact ? "gap-2 border-b bg-muted/15 p-4" : "gap-3 border-b bg-muted/15"}>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <CalendarDays className="size-3.5" />
@@ -78,7 +78,7 @@ function SummaryBlock({
   value: string | null;
 }) {
   return (
-    <div className="rounded-md border bg-background p-3">
+    <div className="rounded-md border bg-background/80 p-3 shadow-xs">
       <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
         {icon}
         {label}
