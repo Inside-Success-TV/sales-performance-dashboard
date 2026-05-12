@@ -42,8 +42,8 @@ export function CallCard({ call, compact = false }: CallCardProps) {
 
         {!compact ? (
           <div className="grid gap-3 text-sm md:grid-cols-2">
-            <SummaryBlock icon={<MessageSquareText className="size-4" />} label="Strength" value={call.biggest_strength} />
-            <SummaryBlock icon={<FileText className="size-4" />} label="Fix" value={call.biggest_fix} />
+            <SummaryBlock icon={<MessageSquareText className="size-4" />} label="Biggest Strength" value={call.biggest_strength} />
+            <SummaryBlock icon={<FileText className="size-4" />} label="What I'd Polish" value={call.biggest_fix} />
           </div>
         ) : null}
 

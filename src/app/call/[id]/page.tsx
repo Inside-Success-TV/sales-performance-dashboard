@@ -42,7 +42,7 @@ export default async function CallPage({
               {call.call_status ? <Badge variant="secondary">{call.call_status}</Badge> : null}
               <Badge variant="outline">{formatDateTime(call.call_date)}</Badge>
             </div>
-            <h1 className="mt-3 text-3xl font-semibold tracking-normal">Call Coaching Report</h1>
+            <h1 className="mt-3 text-3xl font-semibold tracking-normal">Call Coaching: {call.rep_name}</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               {call.rep_name} | {call.client_name || "Unknown client"} | {formatDateTime(call.call_date)}
             </p>
@@ -54,14 +54,12 @@ export default async function CallPage({
             <ExternalButton href={call.transcript_link} label="Transcript" icon={<MessageSquareText className="size-4" />} />
           </div>
 
-          {call.one_line_verdict ? (
-            <div className="rounded-lg border-l-4 border-primary bg-card p-5 text-lg italic leading-8">
-              {call.one_line_verdict}
-            </div>
-          ) : null}
+          <ReportSection title="Verdict">
+            <p className="text-lg italic leading-8">{call.one_line_verdict || "Not provided"}</p>
+          </ReportSection>
 
           <ReportSection title="Biggest Strength">{call.biggest_strength || "Not provided"}</ReportSection>
-          <ReportSection title="Biggest Fix">{call.biggest_fix || "Not provided"}</ReportSection>
+          <ReportSection title="What I'd Polish">{call.biggest_fix || "Not provided"}</ReportSection>
           <ReportSection title="Coaching Tip">{call.coaching_tip || "Not provided"}</ReportSection>
           <ReportSection title="Rudy's Note">{call.rudys_note || "Not provided"}</ReportSection>
 

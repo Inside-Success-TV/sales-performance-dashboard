@@ -44,5 +44,16 @@ export function JsonSection({ value }: { value: JsonObject | string | null }) {
 }
 
 function humanizeKey(value: string) {
-  return value.replace(/_/g, " ");
+  const labels: Record<string, string> = {
+    root_cause: "Root Cause",
+    missed_moment: "Missed Moment",
+    what_to_say_next_time: "What To Say Next Time",
+    how_to_stay_on_longer: "How To Stay On Longer",
+    what_they_did_right: "Move",
+    upsell_opportunity: "Upsell Opportunity",
+    how_to_replicate: "Replicate",
+    how_to_maximize_value: "Maximize Value",
+  };
+
+  return labels[value] || value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }

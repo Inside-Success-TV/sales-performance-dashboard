@@ -340,7 +340,7 @@ const demoCalls: PerformanceCall[] = [
     call_status: "scored",
     one_line_verdict: "The rep kept the call focused but needs a sharper close.",
     biggest_strength: "Clear rapport and steady control through discovery.",
-    biggest_fix: "Ask for the decision immediately after confirming the value gap.",
+    biggest_fix: "Ask one sharper timing question before presenting the next step.",
     coaching_tip: "Use one concise recap before the close, then stop talking.",
     rudys_note: "Good foundation. The next step is tightening the final five minutes.",
     what_went_well: ["Established trust early", "Kept the prospect engaged"],
