@@ -3,7 +3,8 @@ import { slugify } from "@/lib/slug";
 import type { JsonObject } from "@/lib/types";
 
 const optionalString = z
-  .union([z.string(), z.number(), z.boolean(), z.null(), z.undefined()])
+  .union([z.string(), z.number(), z.boolean(), z.null()])
+  .optional()
   .transform((value) => {
     if (value === null || value === undefined) return null;
     const text = String(value).trim();
