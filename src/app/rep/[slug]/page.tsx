@@ -35,7 +35,7 @@ export default async function RepPage({
           </p>
         </div>
 
-        <FilterBar filters={filters} reps={reps} repLocked />
+        <FilterBar filters={filters} reps={reps} repLocked clearHref={`/rep/${slug}`} />
 
         <section className="grid gap-4">
           {calls.length ? (

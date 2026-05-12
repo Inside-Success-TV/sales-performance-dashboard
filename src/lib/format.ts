@@ -26,6 +26,23 @@ export function formatDateTime(value: string | Date | null | undefined) {
   }).format(date);
 }
 
+export function formatMiamiDateTime(value: string | Date | null | undefined) {
+  if (!value) return "Not updated yet";
+
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "Not updated yet";
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(date);
+}
+
 export function truncate(value: string | null | undefined, max = 180) {
   if (!value) return "";
   if (value.length <= max) return value;

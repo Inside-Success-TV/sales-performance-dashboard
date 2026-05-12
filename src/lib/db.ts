@@ -216,13 +216,13 @@ export async function getDashboardData(filters: DashboardFilters = {}) {
     const whereSql = where.length ? `where ${where.join(" and ")}` : "";
     const sql = getSql();
 
-    const [calls, reps, latestByRep] = await Promise.all([
+    const [calls, reps, latestByRep, lastUpdatedRows] = await Promise.all([
       sql.query(
         `
           select *
           from performance_calls
           ${whereSql}
-          order by call_date desc nulls last, updated_at desc
+          order by coalesce(call_date, updated_at) desc, updated_at desc
           limit 100
         `,
         params,
@@ -238,19 +238,26 @@ export async function getDashboardData(filters: DashboardFilters = {}) {
       ),
       sql.query(
         `
-          select distinct on (rep_slug) *
-          from performance_calls
-          order by rep_slug, call_date desc nulls last, updated_at desc
-          limit 30
+          select *
+          from (
+            select distinct on (rep_slug) *
+            from performance_calls
+            order by rep_slug, coalesce(call_date, updated_at) desc, updated_at desc
+          ) latest
+          order by coalesce(call_date, updated_at) desc, updated_at desc
+          limit 40
         `,
         [],
       ),
+      sql.query("select max(updated_at)::text as last_updated_at from performance_calls", []),
     ]);
+    const lastUpdatedAt = (lastUpdatedRows as { last_updated_at: string | null }[])[0]?.last_updated_at ?? null;
 
     return {
       calls: (calls as PerformanceCall[]).map(normalizeCall),
       reps: reps as RepSummary[],
       latestByRep: (latestByRep as PerformanceCall[]).map(normalizeCall),
+      lastUpdatedAt,
       configured: true,
       error: undefined,
     };
@@ -295,9 +302,18 @@ function getFallbackDashboardData() {
     calls,
     reps: buildRepSummaries(calls),
     latestByRep: calls,
+    lastUpdatedAt: getLatestUpdatedAt(calls),
     configured: false,
     error: undefined,
   };
+}
+
+function getLatestUpdatedAt(calls: PerformanceCall[]) {
+  return calls.reduce<string | null>((latest, call) => {
+    if (!call.updated_at) return latest;
+    if (!latest) return call.updated_at;
+    return new Date(call.updated_at) > new Date(latest) ? call.updated_at : latest;
+  }, null);
 }
 
 function buildRepSummaries(calls: PerformanceCall[]): RepSummary[] {
