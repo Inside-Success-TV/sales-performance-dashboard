@@ -36,7 +36,7 @@ export default async function CallPage({
           <div>
             <Link href="/" className={cn(buttonVariants({ variant: "ghost" }), "mb-4 px-0")}>
               <ArrowLeft className="size-4" />
-              All calls
+              Home
             </Link>
             <div className="flex flex-wrap items-center gap-2">
               {call.call_status ? <Badge variant="secondary">{call.call_status}</Badge> : null}

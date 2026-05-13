@@ -1,47 +1,49 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowLeft } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { CallCard } from "@/components/dashboard/call-card";
-import { FilterBar } from "@/components/dashboard/filter-bar";
 import { getDashboardData } from "@/lib/db";
-import { readFilters, type RawSearchParams } from "@/lib/search-params";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function RepPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<RawSearchParams>;
 }) {
   const { slug } = await params;
-  const filters = readFilters(await searchParams, { rep: slug });
-  const { calls, reps } = await getDashboardData(filters);
+  const { calls, reps } = await getDashboardData({ rep: slug });
   const repName = reps.find((rep) => rep.rep_slug === slug)?.rep_name || calls[0]?.rep_name || "Rep";
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <div>
+    <main className="dashboard-page min-h-screen bg-background">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="dashboard-card dashboard-hero rounded-2xl border bg-card/95 p-5 md:p-6">
           <Link href="/" className={cn(buttonVariants({ variant: "ghost" }), "mb-4 px-0")}>
             <ArrowLeft className="size-4" />
-            All calls
+            Home
           </Link>
-          <h1 className="text-3xl font-semibold">{repName}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            All dashboard-ingested coaching reports for this rep from launch forward.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-3xl font-semibold tracking-normal">{repName}</h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {calls.length} {calls.length === 1 ? "report" : "reports"} received by the dashboard.
+              </p>
+            </div>
+            <Badge variant="outline" className="gap-1 rounded-md bg-background/70">
+              <ArrowDownWideNarrow className="size-3.5" />
+              Newest received first
+            </Badge>
+          </div>
         </div>
 
-        <FilterBar filters={filters} reps={reps} repLocked clearHref={`/rep/${slug}`} />
-
-        <section className="grid gap-4">
+        <section className="grid gap-3">
           {calls.length ? (
-            calls.map((call) => <CallCard key={call.id} call={call} />)
+            calls.map((call) => <CallCard key={call.id} call={call} compact showRep={false} />)
           ) : (
-            <div className="rounded-lg border bg-card p-10 text-center text-sm text-muted-foreground">
+            <div className="rounded-xl border bg-card/80 p-8 text-center text-sm text-muted-foreground">
               No reports found for this rep.
             </div>
           )}

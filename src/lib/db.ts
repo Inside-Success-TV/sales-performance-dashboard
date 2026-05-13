@@ -223,7 +223,7 @@ export async function getDashboardData(filters: DashboardFilters = {}) {
           select *
           from performance_calls
           ${whereSql}
-          order by coalesce(call_date, updated_at) desc, updated_at desc
+          order by updated_at desc, coalesce(call_date, created_at) desc
           limit 100
         `,
         params,
@@ -243,9 +243,9 @@ export async function getDashboardData(filters: DashboardFilters = {}) {
           from (
             select distinct on (rep_slug) *
             from performance_calls
-            order by rep_slug, coalesce(call_date, updated_at) desc, updated_at desc
+            order by rep_slug, updated_at desc, coalesce(call_date, created_at) desc
           ) latest
-          order by coalesce(call_date, updated_at) desc, updated_at desc
+          order by updated_at desc, coalesce(call_date, created_at) desc
           limit 40
         `,
         [],

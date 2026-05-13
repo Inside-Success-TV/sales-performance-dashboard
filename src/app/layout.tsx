@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sales Performance Dashboard",
-  description: "Readable coaching reports for Inside Success TV sales calls.",
+  title: "Lil Rudy Sales Feedback Bot",
+  description: "Simple rep-based coaching feedback for Inside Success TV sales calls.",
 };
 
 export default function RootLayout({
@@ -36,7 +36,7 @@ export default function RootLayout({
               <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">
                 <BarChart3 className="size-4" />
               </span>
-              <span className="truncate">Sales Performance</span>
+              <span className="truncate">Lil Rudy Feedback</span>
             </Link>
             <nav aria-label="Primary navigation">
               <Link
