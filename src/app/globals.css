@@ -184,4 +184,21 @@
     background: color-mix(in oklch, var(--muted-foreground) 28%, transparent);
     border-radius: 999px;
   }
+
+  .loading-progress {
+    animation: loading-progress 1.25s ease-in-out infinite;
+    transform-origin: left center;
+  }
+}
+
+@keyframes loading-progress {
+  0% {
+    transform: translateX(-100%) scaleX(0.35);
+  }
+  45% {
+    transform: translateX(25%) scaleX(0.7);
+  }
+  100% {
+    transform: translateX(160%) scaleX(0.35);
+  }
 }
