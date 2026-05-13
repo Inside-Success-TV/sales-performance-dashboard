@@ -21,6 +21,9 @@ export function JsonSection({ value }: { value: JsonObject | string | null }) {
   }
 
   if (typeof value === "string") {
+    const labeledItems = splitLabeledText(value);
+    if (labeledItems.length > 1) return <LabeledEntries entries={labeledItems} />;
+
     const items = normalizeStringList(value);
     if (items.length > 1) return <BulletList items={items} />;
 
@@ -48,10 +51,60 @@ export function JsonSection({ value }: { value: JsonObject | string | null }) {
 }
 
 function JsonEntry({ value }: { value: unknown }) {
+  if (typeof value === "string") {
+    const labeledItems = splitLabeledText(value);
+    if (labeledItems.length > 1) return <LabeledEntries entries={labeledItems} />;
+  }
+
   const items = normalizeStringList(value);
   if (items.length > 1) return <BulletList items={items} />;
 
   return <p className="leading-7">{String(value || "Not provided")}</p>;
+}
+
+function LabeledEntries({ entries }: { entries: Array<{ label: string; text: string }> }) {
+  return (
+    <div className="space-y-3">
+      {entries.map((entry, index) => (
+        <div key={`${entry.label}-${index}`} className="border-l-2 border-primary/25 pl-4">
+          <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+            {entry.label}
+          </div>
+          <JsonEntry value={entry.text} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function splitLabeledText(value: string) {
+  const labels = [
+    "Root cause",
+    "Missed moment",
+    "What to say next time",
+    "How to stay on longer",
+    "What they did right",
+    "Upsell opportunity",
+    "How to replicate",
+    "How to maximize value",
+  ];
+  const pattern = new RegExp(`(?:^|\\s)(${labels.join("|")}):`, "gi");
+  const matches = [...value.matchAll(pattern)];
+
+  if (matches.length < 2) return [];
+
+  return matches
+    .map((match, index) => {
+      const next = matches[index + 1];
+      const labelStart = match.index ?? 0;
+      const textStart = labelStart + match[0].length;
+      const textEnd = next?.index ?? value.length;
+      return {
+        label: humanizeKey(match[1].toLowerCase().replace(/\s+/g, "_")),
+        text: value.slice(textStart, textEnd).trim(),
+      };
+    })
+    .filter((entry) => entry.text);
 }
 
 function humanizeKey(value: string) {

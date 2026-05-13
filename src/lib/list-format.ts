@@ -59,7 +59,7 @@ function splitListText(value: string): string[] {
 }
 
 function splitNumberedText(value: string): string[] {
-  const markers = [...value.matchAll(/(?:^|\s)(\d{1,2})[.)]\s+/g)].map((match) => ({
+  const markers = [...value.matchAll(/(?:^|\s)(?:\(?(\d{1,2})[.)]\)?)\s+/g)].map((match) => ({
     number: Number(match[1]),
     index: match.index ?? 0,
     end: (match.index ?? 0) + match[0].length,
@@ -78,6 +78,6 @@ function cleanListItem(value: string) {
   return value
     .trim()
     .replace(/^[•*-]\s+/, "")
-    .replace(/^\d{1,2}[.)]\s+/, "")
+    .replace(/^\(?\d{1,2}[.)]\)?\s+/, "")
     .trim();
 }
