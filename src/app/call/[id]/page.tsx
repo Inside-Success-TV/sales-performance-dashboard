@@ -18,7 +18,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { BulletList, JsonSection } from "@/components/dashboard/json-section";
 import { TrackRecentlyViewed } from "@/components/dashboard/recently-viewed";
 import { getPerformanceCall } from "@/lib/db";
-import { formatDateTime, formatMiamiDateTime } from "@/lib/format";
+import { formatMiamiDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +52,6 @@ export default async function CallPage({
             <div className="flex flex-wrap items-center gap-2">
               {call.call_status ? <Badge variant="secondary">{call.call_status}</Badge> : null}
               <Badge variant="outline">Received {formatMiamiDateTime(call.updated_at)}</Badge>
-              <Badge variant="outline">Call {formatDateTime(call.call_date)}</Badge>
             </div>
 
             <h1 className="mt-3 text-3xl font-semibold tracking-normal">
