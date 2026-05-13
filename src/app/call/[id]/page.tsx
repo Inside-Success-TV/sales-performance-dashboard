@@ -1,14 +1,24 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, FileText, MessageSquareText, Video } from "lucide-react";
+import {
+  ArrowLeft,
+  Award,
+  BookOpenText,
+  ExternalLink,
+  FileText,
+  Lightbulb,
+  MessageSquareText,
+  PencilLine,
+  Target,
+  Video,
+  Wrench,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { BulletList, JsonSection } from "@/components/dashboard/json-section";
 import { TrackRecentlyViewed } from "@/components/dashboard/recently-viewed";
 import { getPerformanceCall } from "@/lib/db";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatMiamiDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -29,83 +39,108 @@ export default async function CallPage({
       : "Why No Close";
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className="dashboard-page min-h-screen bg-background">
       <TrackRecentlyViewed call={call} />
-      <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[1fr_320px] lg:px-8">
-        <article className="space-y-5">
-          <div>
+      <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+        <article className="space-y-4">
+          <header className="dashboard-card dashboard-hero rounded-2xl border bg-card/95 p-5 md:p-6">
             <Link href="/" className={cn(buttonVariants({ variant: "ghost" }), "mb-4 px-0")}>
               <ArrowLeft className="size-4" />
               Home
             </Link>
+
             <div className="flex flex-wrap items-center gap-2">
               {call.call_status ? <Badge variant="secondary">{call.call_status}</Badge> : null}
-              <Badge variant="outline">{formatDateTime(call.call_date)}</Badge>
+              <Badge variant="outline">Received {formatMiamiDateTime(call.updated_at)}</Badge>
+              <Badge variant="outline">Call {formatDateTime(call.call_date)}</Badge>
             </div>
-            <h1 className="mt-3 text-3xl font-semibold tracking-normal">Call Coaching: {call.rep_name}</h1>
+
+            <h1 className="mt-3 text-3xl font-semibold tracking-normal">
+              {call.client_name || "Feedback Report"}
+            </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              {call.rep_name} | {call.client_name || "Unknown client"} | {formatDateTime(call.call_date)}
+              {call.rep_name} sales feedback report.
             </p>
-          </div>
 
-          <div className="flex flex-wrap gap-2">
-            <ExternalButton href={call.google_doc_link} label="Google Drive" icon={<FileText className="size-4" />} />
-            <ExternalButton href={call.meeting_link} label="Zoom Meeting" icon={<Video className="size-4" />} />
-            <ExternalButton href={call.transcript_link} label="Transcript" icon={<MessageSquareText className="size-4" />} />
-          </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <ExternalButton href={call.google_doc_link} label="Open Google Doc" icon={<FileText className="size-4" />} />
+              <ExternalButton href={call.meeting_link} label="Zoom" icon={<Video className="size-4" />} />
+              <ExternalButton href={call.transcript_link} label="Transcript" icon={<MessageSquareText className="size-4" />} />
+            </div>
+          </header>
 
-          <ReportSection title="Verdict">
-            <p className="text-lg italic leading-8">{call.one_line_verdict || "Not provided"}</p>
+          <ReportSection title="Verdict" icon={<Lightbulb className="size-4" />} featured>
+            <p className="text-base leading-8 md:text-lg">{call.one_line_verdict || "Not provided"}</p>
           </ReportSection>
 
-          <ReportSection title="Biggest Strength">{call.biggest_strength || "Not provided"}</ReportSection>
-          <ReportSection title="What I'd Polish">{call.biggest_fix || "Not provided"}</ReportSection>
-          <ReportSection title="Coaching Tip">{call.coaching_tip || "Not provided"}</ReportSection>
-          <ReportSection title="Rudy's Note">{call.rudys_note || "Not provided"}</ReportSection>
+          <ReportSection title="Biggest Strength" icon={<Award className="size-4" />}>
+            <ReportText>{call.biggest_strength || "Not provided"}</ReportText>
+          </ReportSection>
 
-          <ReportSection title="What Went Well">
+          <ReportSection title="What I'd Polish" icon={<PencilLine className="size-4" />}>
+            <ReportText>{call.biggest_fix || "Not provided"}</ReportText>
+          </ReportSection>
+
+          <ReportSection title="Coaching Tip" icon={<Target className="size-4" />}>
+            <ReportText>{call.coaching_tip || "Not provided"}</ReportText>
+          </ReportSection>
+
+          <ReportSection title="Rudy's Note" icon={<BookOpenText className="size-4" />}>
+            <ReportText>{call.rudys_note || "Not provided"}</ReportText>
+          </ReportSection>
+
+          <ReportSection title="What Went Well" icon={<Award className="size-4" />}>
             <BulletList items={call.what_went_well} />
           </ReportSection>
-          <ReportSection title="What To Improve">
+
+          <ReportSection title="What To Improve" icon={<Wrench className="size-4" />}>
             <BulletList items={call.what_to_improve} />
           </ReportSection>
-          <ReportSection title={closeTitle}>
+
+          <ReportSection title={closeTitle} icon={<Target className="size-4" />}>
             <JsonSection value={call.close_section} />
           </ReportSection>
-          <ReportSection title="Objections Surfaced">
+
+          <ReportSection title="Objections Surfaced" icon={<MessageSquareText className="size-4" />}>
             <BulletList items={call.objections_surfaced} />
           </ReportSection>
         </article>
-
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <Card className="rounded-lg">
-            <CardHeader>
-              <CardTitle className="text-base">Metadata</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <Meta label="Rep" value={call.rep_name} href={`/rep/${call.rep_slug}`} />
-              <Meta label="Client" value={call.client_name} />
-              <Meta label="Meeting ID" value={call.meeting_id} />
-              <Meta label="Meeting title" value={call.meeting_title} />
-              <Separator />
-              <Meta label="Airtable record" value={call.airtable_record_id} mono />
-              <Meta label="Google doc ID" value={call.google_doc_id} mono />
-              <Meta label="Updated" value={formatDateTime(call.updated_at)} />
-            </CardContent>
-          </Card>
-        </aside>
       </div>
     </main>
   );
 }
 
-function ReportSection({ title, children }: { title: string; children: React.ReactNode }) {
+function ReportSection({
+  title,
+  icon,
+  children,
+  featured = false,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  featured?: boolean;
+}) {
   return (
-    <section className="rounded-lg border bg-card p-5">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-normal text-muted-foreground">{title}</h2>
-      <div className="text-sm leading-7">{children}</div>
+    <section
+      className={cn(
+        "rounded-xl border bg-card/95 p-5 shadow-xs",
+        featured && "border-primary/20 bg-primary/5",
+      )}
+    >
+      <h2 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+        <span className="grid size-7 place-items-center rounded-md border bg-background text-foreground">
+          {icon}
+        </span>
+        {title}
+      </h2>
+      <div className="text-sm leading-7 text-foreground">{children}</div>
     </section>
   );
+}
+
+function ReportText({ children }: { children: React.ReactNode }) {
+  return <p className="leading-7">{children}</p>;
 }
 
 function ExternalButton({
@@ -125,36 +160,5 @@ function ExternalButton({
       {label}
       <ExternalLink className="size-4" />
     </a>
-  );
-}
-
-function Meta({
-  label,
-  value,
-  href,
-  mono = false,
-}: {
-  label: string;
-  value: string | null;
-  href?: string;
-  mono?: boolean;
-}) {
-  if (!value) return null;
-
-  const content = (
-    <span className={mono ? "break-all font-mono text-xs" : "break-words"}>{value}</span>
-  );
-
-  return (
-    <div className="grid gap-1">
-      <span className="text-xs font-medium uppercase text-muted-foreground">{label}</span>
-      {href ? (
-        <Link href={href} className="hover:underline">
-          {content}
-        </Link>
-      ) : (
-        content
-      )}
-    </div>
   );
 }

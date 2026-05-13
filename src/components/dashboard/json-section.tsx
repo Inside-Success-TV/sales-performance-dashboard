@@ -7,7 +7,7 @@ export function BulletList({ items }: { items: string[] }) {
   }
 
   return (
-    <ul className="list-disc space-y-2 pl-5 leading-7">
+    <ul className="list-disc space-y-2 pl-5 leading-7 marker:text-primary">
       {items.map((item, index) => (
         <li key={`${item}-${index}`}>{item}</li>
       ))}
@@ -30,7 +30,7 @@ export function JsonSection({ value }: { value: JsonObject | string | null }) {
   return (
     <div className="space-y-3">
       {Object.entries(value).map(([key, entry]) => (
-        <div key={key} className="rounded-md border bg-background p-3">
+        <div key={key} className="border-l-2 border-primary/25 pl-4">
           <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
             {humanizeKey(key)}
           </div>
