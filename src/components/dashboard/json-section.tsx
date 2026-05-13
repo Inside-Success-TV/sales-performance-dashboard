@@ -1,3 +1,4 @@
+import { normalizeStringList } from "@/lib/list-format";
 import type { JsonObject } from "@/lib/types";
 
 export function BulletList({ items }: { items: string[] }) {
@@ -20,6 +21,9 @@ export function JsonSection({ value }: { value: JsonObject | string | null }) {
   }
 
   if (typeof value === "string") {
+    const items = normalizeStringList(value);
+    if (items.length > 1) return <BulletList items={items} />;
+
     return <p className="leading-7">{value}</p>;
   }
 
@@ -31,16 +35,23 @@ export function JsonSection({ value }: { value: JsonObject | string | null }) {
             {humanizeKey(key)}
           </div>
           {Array.isArray(entry) ? (
-            <BulletList items={entry.map(String)} />
+            <BulletList items={normalizeStringList(entry)} />
           ) : typeof entry === "object" && entry !== null ? (
             <JsonSection value={entry as JsonObject} />
           ) : (
-            <p className="leading-7">{String(entry || "Not provided")}</p>
+            <JsonEntry value={entry} />
           )}
         </div>
       ))}
     </div>
   );
+}
+
+function JsonEntry({ value }: { value: unknown }) {
+  const items = normalizeStringList(value);
+  if (items.length > 1) return <BulletList items={items} />;
+
+  return <p className="leading-7">{String(value || "Not provided")}</p>;
 }
 
 function humanizeKey(value: string) {

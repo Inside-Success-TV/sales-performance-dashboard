@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeStringList } from "@/lib/list-format";
 import { slugify } from "@/lib/slug";
 import type { JsonObject } from "@/lib/types";
 
@@ -58,9 +59,9 @@ export function normalizeIngestPayload(raw: unknown) {
 
   const repName = parsed.rep_name || "Unknown rep";
   const repSlug = parsed.rep_slug || slugify(repName);
-  const whatWentWell = normalizeStringArray(parsed.what_went_well);
-  const whatToImprove = normalizeStringArray(parsed.what_to_improve);
-  const objectionsSurfaced = normalizeStringArray(parsed.objections_surfaced);
+  const whatWentWell = normalizeStringList(parsed.what_went_well);
+  const whatToImprove = normalizeStringList(parsed.what_to_improve);
+  const objectionsSurfaced = normalizeStringList(parsed.objections_surfaced);
   const whyNoClose = normalizeJsonField(parsed.why_no_close);
   const closeWorks = normalizeJsonField(parsed.what_made_this_close_work);
   const closeSectionType = closeWorks
@@ -104,31 +105,6 @@ export function normalizeIngestPayload(raw: unknown) {
     ...normalized,
     search_document: buildSearchDocument(normalized),
   };
-}
-
-function normalizeStringArray(value: unknown): string[] {
-  const parsed = normalizeJsonField(value);
-
-  if (Array.isArray(parsed)) {
-    return parsed
-      .map((item) => stringifySearchPart(item).trim())
-      .filter(Boolean);
-  }
-
-  if (typeof parsed === "string") {
-    return parsed
-      .split(/\n|•|- /)
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  if (parsed && typeof parsed === "object") {
-    return Object.values(parsed)
-      .flatMap((item) => normalizeStringArray(item))
-      .filter(Boolean);
-  }
-
-  return [];
 }
 
 function normalizeJsonField(value: unknown): JsonObject | string | string[] | null {

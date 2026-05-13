@@ -1,5 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import type { NormalizedIngestPayload } from "@/lib/ingest";
+import { normalizeStringList } from "@/lib/list-format";
 import type { DashboardFilters, PerformanceCall, RepSummary } from "@/lib/types";
 
 type SqlClient = ReturnType<typeof neon>;
@@ -289,9 +290,9 @@ export async function getPerformanceCall(id: string) {
 function normalizeCall(call: PerformanceCall): PerformanceCall {
   return {
     ...call,
-    what_went_well: Array.isArray(call.what_went_well) ? call.what_went_well : [],
-    what_to_improve: Array.isArray(call.what_to_improve) ? call.what_to_improve : [],
-    objections_surfaced: Array.isArray(call.objections_surfaced) ? call.objections_surfaced : [],
+    what_went_well: normalizeStringList(call.what_went_well),
+    what_to_improve: normalizeStringList(call.what_to_improve),
+    objections_surfaced: normalizeStringList(call.objections_surfaced),
   };
 }
 
