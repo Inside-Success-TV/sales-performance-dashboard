@@ -1,7 +1,8 @@
 import { neon } from "@neondatabase/serverless";
 import type { NormalizedIngestPayload } from "@/lib/ingest";
 import { normalizeStringList } from "@/lib/list-format";
-import type { DashboardFilters, PerformanceCall, RepSummary } from "@/lib/types";
+import type { DashboardFilters, ManualFeedbackReport, PerformanceCall, RepSummary } from "@/lib/types";
+import type { NormalizedManualCallback, ManualSubmitPayload } from "@/lib/manual-reports";
 
 type SqlClient = ReturnType<typeof neon>;
 
@@ -66,6 +67,42 @@ export async function ensureSchema() {
   await sql`create index if not exists performance_calls_rep_slug_idx on performance_calls (rep_slug)`;
   await sql`create index if not exists performance_calls_call_date_idx on performance_calls (call_date desc nulls last)`;
   await sql`create index if not exists performance_calls_updated_at_idx on performance_calls (updated_at desc)`;
+
+  await sql`
+    create table if not exists manual_feedback_reports (
+      id bigserial primary key,
+      public_id text not null unique,
+      status text not null default 'pending',
+      input_type text not null,
+      rep_name text not null,
+      rep_email text,
+      client_name text,
+      zoom_link text,
+      transcript_link text,
+      google_doc_id text,
+      google_doc_link text,
+      call_status text,
+      refusal_reason text,
+      one_line_verdict text,
+      biggest_strength text,
+      biggest_fix text,
+      coaching_tip text,
+      rudys_note text,
+      what_went_well jsonb not null default '[]'::jsonb,
+      what_to_improve jsonb not null default '[]'::jsonb,
+      why_no_close jsonb,
+      what_made_this_close_work jsonb,
+      objections_surfaced jsonb not null default '[]'::jsonb,
+      close_section_type text,
+      close_section jsonb,
+      source_payload jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
+  await sql`create index if not exists manual_feedback_reports_public_id_idx on manual_feedback_reports (public_id)`;
+  await sql`create index if not exists manual_feedback_reports_status_idx on manual_feedback_reports (status)`;
+  await sql`create index if not exists manual_feedback_reports_updated_at_idx on manual_feedback_reports (updated_at desc)`;
 
   schemaReady = true;
 }
@@ -287,12 +324,165 @@ export async function getPerformanceCall(id: string) {
   }
 }
 
+export async function createManualFeedbackReport(publicId: string, payload: ManualSubmitPayload) {
+  await ensureSchema();
+  const rows = await getSql().query(
+    `
+      insert into manual_feedback_reports (
+        public_id,
+        status,
+        input_type,
+        rep_name,
+        rep_email,
+        client_name,
+        zoom_link,
+        source_payload
+      )
+      values ($1, 'pending', $2, $3, $4, $5, $6, $7::jsonb)
+      returning *
+    `,
+    [
+      publicId,
+      payload.input_type,
+      payload.rep_name || "Unknown rep",
+      payload.rep_email,
+      payload.client_name,
+      payload.zoom_link,
+      JSON.stringify({
+        input_type: payload.input_type,
+        rep_name: payload.rep_name,
+        rep_email: payload.rep_email,
+        client_name: payload.client_name,
+        zoom_link: payload.zoom_link,
+        submitted_at: new Date().toISOString(),
+      }),
+    ],
+  );
+
+  return normalizeManualReport((rows as ManualFeedbackReport[])[0]);
+}
+
+export async function updateManualFeedbackStatus(
+  publicId: string,
+  status: ManualFeedbackReport["status"],
+  refusalReason?: string,
+) {
+  await ensureSchema();
+  const rows = await getSql().query(
+    `
+      update manual_feedback_reports
+      set status = $2,
+          refusal_reason = coalesce($3, refusal_reason),
+          updated_at = now()
+      where public_id = $1
+      returning *
+    `,
+    [publicId, status, refusalReason || null],
+  );
+
+  return (rows as ManualFeedbackReport[])[0]
+    ? normalizeManualReport((rows as ManualFeedbackReport[])[0])
+    : null;
+}
+
+export async function applyManualFeedbackCallback(payload: NormalizedManualCallback) {
+  await ensureSchema();
+
+  const rows = await getSql().query(
+    `
+      update manual_feedback_reports
+      set status = $2,
+          rep_name = coalesce($3, rep_name),
+          rep_email = coalesce($4, rep_email),
+          client_name = coalesce($5, client_name),
+          zoom_link = coalesce($6, zoom_link),
+          transcript_link = coalesce($7, transcript_link),
+          google_doc_id = coalesce($8, google_doc_id),
+          google_doc_link = coalesce($9, google_doc_link),
+          call_status = coalesce($10, call_status),
+          refusal_reason = coalesce($11, refusal_reason),
+          one_line_verdict = coalesce($12, one_line_verdict),
+          biggest_strength = coalesce($13, biggest_strength),
+          biggest_fix = coalesce($14, biggest_fix),
+          coaching_tip = coalesce($15, coaching_tip),
+          rudys_note = coalesce($16, rudys_note),
+          what_went_well = $17::jsonb,
+          what_to_improve = $18::jsonb,
+          why_no_close = $19::jsonb,
+          what_made_this_close_work = $20::jsonb,
+          objections_surfaced = $21::jsonb,
+          close_section_type = $22,
+          close_section = $23::jsonb,
+          source_payload = $24::jsonb,
+          updated_at = now()
+      where public_id = $1
+      returning *
+    `,
+    [
+      payload.public_id,
+      payload.status,
+      payload.rep_name,
+      payload.rep_email,
+      payload.client_name,
+      payload.zoom_link,
+      payload.transcript_link,
+      payload.google_doc_id,
+      payload.google_doc_link,
+      payload.call_status,
+      payload.refusal_reason,
+      payload.one_line_verdict,
+      payload.biggest_strength,
+      payload.biggest_fix,
+      payload.coaching_tip,
+      payload.rudys_note,
+      JSON.stringify(payload.what_went_well),
+      JSON.stringify(payload.what_to_improve),
+      JSON.stringify(payload.why_no_close),
+      JSON.stringify(payload.what_made_this_close_work),
+      JSON.stringify(payload.objections_surfaced),
+      payload.close_section_type,
+      JSON.stringify(payload.close_section),
+      JSON.stringify(payload.source_payload),
+    ],
+  );
+
+  return (rows as ManualFeedbackReport[])[0]
+    ? normalizeManualReport((rows as ManualFeedbackReport[])[0])
+    : null;
+}
+
+export async function getManualFeedbackReport(publicId: string) {
+  if (!hasDatabase()) return null;
+
+  try {
+    await ensureSchema();
+    const rows = (await getSql().query(
+      "select * from manual_feedback_reports where public_id = $1 limit 1",
+      [publicId],
+    )) as ManualFeedbackReport[];
+
+    return rows[0] ? normalizeManualReport(rows[0]) : null;
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
+
 function normalizeCall(call: PerformanceCall): PerformanceCall {
   return {
     ...call,
     what_went_well: normalizeStringList(call.what_went_well),
     what_to_improve: normalizeStringList(call.what_to_improve),
     objections_surfaced: normalizeStringList(call.objections_surfaced),
+  };
+}
+
+function normalizeManualReport(report: ManualFeedbackReport): ManualFeedbackReport {
+  return {
+    ...report,
+    what_went_well: normalizeStringList(report.what_went_well),
+    what_to_improve: normalizeStringList(report.what_to_improve),
+    objections_surfaced: normalizeStringList(report.objections_surfaced),
   };
 }
 

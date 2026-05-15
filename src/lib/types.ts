@@ -48,3 +48,44 @@ export type RepSummary = {
   call_count: number;
   latest_call_date: string | null;
 };
+
+export type ManualReportStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "refused"
+  | "needs_transcript_paste"
+  | "failed";
+
+export type ManualReportInputType = "transcript" | "zoom_link";
+
+export type ManualFeedbackReport = {
+  id: number;
+  public_id: string;
+  status: ManualReportStatus;
+  input_type: ManualReportInputType;
+  rep_name: string;
+  rep_email: string | null;
+  client_name: string | null;
+  zoom_link: string | null;
+  transcript_link: string | null;
+  google_doc_id: string | null;
+  google_doc_link: string | null;
+  call_status: string | null;
+  refusal_reason: string | null;
+  one_line_verdict: string | null;
+  biggest_strength: string | null;
+  biggest_fix: string | null;
+  coaching_tip: string | null;
+  rudys_note: string | null;
+  what_went_well: string[];
+  what_to_improve: string[];
+  why_no_close: JsonObject | string | null;
+  what_made_this_close_work: JsonObject | string | null;
+  objections_surfaced: string[];
+  close_section_type: CloseSectionType;
+  close_section: JsonObject | string | null;
+  source_payload: JsonObject;
+  created_at: string;
+  updated_at: string;
+};
