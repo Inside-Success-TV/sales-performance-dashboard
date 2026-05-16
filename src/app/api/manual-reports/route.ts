@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { createManualFeedbackReport, hasDatabase, updateManualFeedbackStatus } from "@/lib/db";
 import { isManualFeedbackEnabled, manualSubmitSchema } from "@/lib/manual-reports";
+import { resolveZoomTranscript } from "@/lib/zoom-transcript";
 
 export const runtime = "nodejs";
 
@@ -40,6 +41,20 @@ export async function POST(request: NextRequest) {
     const origin = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
     const callbackUrl = new URL("/api/manual-reports/callback", origin).toString();
     const reportUrl = new URL(`/self-report/${publicId}`, origin).toString();
+    let workflowTranscriptText =
+      payload.input_type === "transcript" ? payload.transcript_text : null;
+    let transcriptLink: string | null = null;
+
+    if (payload.input_type === "zoom_link" && payload.zoom_link) {
+      try {
+        const zoomTranscript = await resolveZoomTranscript(payload.zoom_link);
+        workflowTranscriptText = zoomTranscript?.transcriptText || null;
+        transcriptLink = zoomTranscript?.transcriptUrl || null;
+      } catch {
+        workflowTranscriptText = null;
+        transcriptLink = null;
+      }
+    }
 
     try {
       const response = await fetch(webhookUrl, {
@@ -56,8 +71,9 @@ export async function POST(request: NextRequest) {
           rep_email: payload.rep_email,
           client_name: payload.client_name,
           input_type: payload.input_type,
-          transcript_text: payload.input_type === "transcript" ? payload.transcript_text : null,
+          transcript_text: workflowTranscriptText,
           zoom_link: payload.input_type === "zoom_link" ? payload.zoom_link : null,
+          transcript_link: transcriptLink,
         }),
         signal: AbortSignal.timeout(15000),
       });
