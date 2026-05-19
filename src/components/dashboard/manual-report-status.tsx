@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { BulletList, JsonSection } from "@/components/dashboard/json-section";
 import { formatMiamiDateTime } from "@/lib/format";
+import { slugify } from "@/lib/slug";
 import type { ManualFeedbackReport } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +41,9 @@ export function ManualReportStatus({ initialReport }: { initialReport: ManualFee
   const reportDocLink = report.report_doc_link || report.google_doc_link;
   const transcriptLink = report.transcript_drive_link || report.transcript_link;
   const zoomLink = report.original_zoom_link || report.zoom_link;
+  const manualReportsHref = report.rep_name
+    ? `/manual-reports?rep=${encodeURIComponent(slugify(report.rep_name))}`
+    : "/manual-reports";
 
   const isWaiting = !TERMINAL_STATUSES.has(report.status);
   const closeTitle =
@@ -89,7 +93,7 @@ export function ManualReportStatus({ initialReport }: { initialReport: ManualFee
         <article className="space-y-4">
           <header className="dashboard-card dashboard-hero rounded-xl border bg-card/95 p-5 md:p-6">
             <div className="mb-4 flex flex-wrap items-center gap-2">
-              <Link href="/manual-reports" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "px-0")}>
+              <Link href={manualReportsHref} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "px-0")}>
                 <ArrowLeft className="size-4" />
                 Manual reports
               </Link>

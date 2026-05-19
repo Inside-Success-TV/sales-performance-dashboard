@@ -95,7 +95,7 @@ export type ManualSubmitPayload = z.infer<typeof manualSubmitSchema>;
 export type NormalizedManualCallback = ReturnType<typeof normalizeManualCallback>;
 
 export function isManualFeedbackEnabled() {
-  return process.env.NEXT_PUBLIC_MANUAL_FEEDBACK_ENABLED !== "false";
+  return true;
 }
 
 export function normalizeManualCallback(raw: unknown) {

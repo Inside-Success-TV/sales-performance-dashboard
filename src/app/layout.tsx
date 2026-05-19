@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
-import { BarChart3, Home } from "lucide-react";
+import { BarChart3, FileText, Home, Send } from "lucide-react";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,20 +31,37 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col bg-background">
         <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
-          <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
             <Link href="/" className="flex min-w-0 items-center gap-2 font-semibold">
               <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">
                 <BarChart3 className="size-4" />
               </span>
               <span className="truncate">Lil Rudy Feedback</span>
             </Link>
-            <nav aria-label="Primary navigation" className="flex items-center gap-2">
+            <nav
+              aria-label="Primary navigation"
+              className="dashboard-scroll flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto pb-0.5 sm:flex-none sm:overflow-visible sm:pb-0"
+            >
               <Link
                 href="/"
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border bg-card px-3 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border bg-card px-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
               >
                 <Home className="size-4" />
                 Home
+              </Link>
+              <Link
+                href="/manual-reports"
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border bg-card px-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
+              >
+                <FileText className="size-4" />
+                Manual reports
+              </Link>
+              <Link
+                href="/submit"
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border bg-card px-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
+              >
+                <Send className="size-4" />
+                Submit call
               </Link>
             </nav>
           </div>
