@@ -95,11 +95,11 @@ export function ManualReportStatus({ initialReport }: { initialReport: ManualFee
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <Link href={manualReportsHref} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "px-0")}>
                 <ArrowLeft className="size-4" />
-                Manual reports
+                Self-submitted reports
               </Link>
               <Link href="/submit" className={buttonVariants({ variant: "outline", size: "sm" })}>
                 <Send className="size-4" />
-                Submit call
+                Get feedback
               </Link>
             </div>
 

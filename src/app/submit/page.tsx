@@ -23,7 +23,7 @@ export default function SubmitPage() {
             </Link>
             <Link href="/manual-reports" className={buttonVariants({ variant: "outline", size: "sm" })}>
               <FileText className="size-4" />
-              Manual reports
+              Self-submitted reports
             </Link>
           </div>
           <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -33,10 +33,10 @@ export default function SubmitPage() {
             </Badge>
           </div>
           <h1 className="text-3xl font-semibold tracking-normal md:text-4xl">
-            Submit a sales call
+            Generate call feedback
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Paste a transcript or attach a Zoom link to generate a Lil Rudy coaching report for a closing-stage call.
+            Add a Zoom recording link or paste a transcript to generate a Lil Rudy coaching report for a closing-stage call.
           </p>
         </header>
 

@@ -54,14 +54,14 @@ export default function RootLayout({
                 className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border bg-card px-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
               >
                 <FileText className="size-4" />
-                Manual reports
+                Self-submitted reports
               </Link>
               <Link
                 href="/submit"
                 className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border bg-card px-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
               >
                 <Send className="size-4" />
-                Submit call
+                Get feedback
               </Link>
             </nav>
           </div>

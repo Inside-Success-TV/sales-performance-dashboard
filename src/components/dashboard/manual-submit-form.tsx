@@ -13,7 +13,7 @@ type InputType = "transcript" | "zoom_link";
 
 export function ManualSubmitForm() {
   const router = useRouter();
-  const [inputType, setInputType] = useState<InputType>("transcript");
+  const [inputType, setInputType] = useState<InputType>("zoom_link");
   const [repName, setRepName] = useState("");
   const [repEmail, setRepEmail] = useState("");
   const [clientName, setClientName] = useState("");
@@ -63,65 +63,35 @@ export function ManualSubmitForm() {
 
   return (
     <form onSubmit={submitReport} className="space-y-5">
-      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-        <div className="flex gap-3">
-          <span className="grid size-8 shrink-0 place-items-center rounded-md border bg-background text-primary">
-            <ShieldAlert className="size-4" />
-          </span>
-          <div className="space-y-1">
-            <div className="text-sm font-semibold">Call 2 or later only</div>
-            <p className="text-sm leading-6 text-muted-foreground">
-              This tool only generates coaching reports for Call 2 or later sales calls. Call 1, internal calls, training calls, no-shows, or very short transcripts will not generate a report.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Rep name" required>
-          <Input
-            value={repName}
-            onChange={(event) => setRepName(event.target.value)}
-            placeholder="Sales rep"
-            autoComplete="name"
-          />
-        </Field>
-        <Field label="Rep email">
-          <Input
-            type="email"
-            value={repEmail}
-            onChange={(event) => setRepEmail(event.target.value)}
-            placeholder="rep@company.com"
-            autoComplete="email"
-          />
-        </Field>
-        <Field label="Client name">
-          <Input
-            value={clientName}
-            onChange={(event) => setClientName(event.target.value)}
-            placeholder="Client or prospect"
-          />
-        </Field>
-      </div>
-
       <div className="rounded-xl border bg-background/80 p-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <ModeButton
-            active={inputType === "transcript"}
-            icon={<FileText className="size-4" />}
-            label="Paste transcript"
-            onClick={() => setInputType("transcript")}
-          />
           <ModeButton
             active={inputType === "zoom_link"}
             icon={<LinkIcon className="size-4" />}
             label="Zoom link"
             onClick={() => setInputType("zoom_link")}
           />
+          <ModeButton
+            active={inputType === "transcript"}
+            icon={<FileText className="size-4" />}
+            label="Paste transcript"
+            onClick={() => setInputType("transcript")}
+          />
         </div>
       </div>
 
-      {inputType === "transcript" ? (
+      {inputType === "zoom_link" ? (
+        <Field label="Zoom meeting or recording link" required>
+          <Input
+            value={zoomLink}
+            onChange={(event) => setZoomLink(event.target.value)}
+            placeholder="https://insidesuccess.zoom.us/rec/share/..."
+          />
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+            Paste one Zoom recording link. If Zoom does not allow transcript access, the report will ask for a pasted transcript instead.
+          </p>
+        </Field>
+      ) : (
         <Field label="Transcript" required>
           <Textarea
             value={transcriptText}
@@ -134,18 +104,66 @@ export function ManualSubmitForm() {
             <span>Raw transcript text is sent to the workflow but not stored in the dashboard database.</span>
           </div>
         </Field>
-      ) : (
-        <Field label="Zoom meeting or recording link" required>
-          <Input
-            value={zoomLink}
-            onChange={(event) => setZoomLink(event.target.value)}
-            placeholder="https://insidesuccess.zoom.us/rec/share/..."
-          />
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">
-            The workflow will try to retrieve the transcript first. If Zoom does not allow access, the report will ask for a pasted transcript instead.
-          </p>
-        </Field>
       )}
+
+      <div className="rounded-xl border bg-background/80 p-4">
+        <Field
+          label="Rep name"
+          required
+          description="Required so this report is saved under your name in self-submitted reports."
+        >
+          <Input
+            value={repName}
+            onChange={(event) => setRepName(event.target.value)}
+            placeholder="Sales rep"
+            autoComplete="name"
+          />
+        </Field>
+      </div>
+
+      <details className="group rounded-xl border bg-background/60 p-4">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold">
+          <span>Optional details</span>
+          <span className="text-xs font-normal text-muted-foreground group-open:hidden">
+            Rep email and client name
+          </span>
+          <span className="hidden text-xs font-normal text-muted-foreground group-open:inline">
+            Hide
+          </span>
+        </summary>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <Field label="Rep email (optional)">
+            <Input
+              type="email"
+              value={repEmail}
+              onChange={(event) => setRepEmail(event.target.value)}
+              placeholder="rep@company.com"
+              autoComplete="email"
+            />
+          </Field>
+          <Field label="Client name (optional)">
+            <Input
+              value={clientName}
+              onChange={(event) => setClientName(event.target.value)}
+              placeholder="Client or prospect"
+            />
+          </Field>
+        </div>
+      </details>
+
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+        <div className="flex gap-3">
+          <span className="grid size-8 shrink-0 place-items-center rounded-md border bg-background text-primary">
+            <ShieldAlert className="size-4" />
+          </span>
+          <div className="space-y-1">
+            <div className="text-sm font-semibold">Call 2 or later only</div>
+            <p className="text-sm leading-6 text-muted-foreground">
+              Call 1, internal calls, training calls, no-shows, or very short transcripts will not generate a report.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {error ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
@@ -159,7 +177,7 @@ export function ManualSubmitForm() {
         </p>
         <Button type="submit" disabled={!canSubmit || isSubmitting} className="gap-1.5">
           {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-          Submit report
+          Generate feedback
         </Button>
       </div>
     </form>
@@ -169,10 +187,12 @@ export function ManualSubmitForm() {
 function Field({
   label,
   required = false,
+  description,
   children,
 }: {
   label: string;
   required?: boolean;
+  description?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -182,6 +202,9 @@ function Field({
         {required ? " *" : ""}
       </span>
       {children}
+      {description ? (
+        <span className="mt-2 block text-xs leading-5 text-muted-foreground">{description}</span>
+      ) : null}
     </label>
   );
 }

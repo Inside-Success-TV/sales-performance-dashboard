@@ -53,10 +53,10 @@ export default async function ManualReportsPage({
             </Link>
             <Link href="/submit" className={buttonVariants({ variant: "outline", size: "sm" })}>
               <Send className="size-4" />
-              Submit call
+              Get feedback
             </Link>
           </div>
-          <Badge variant="secondary" className="mb-3">Manual feedback</Badge>
+          <Badge variant="secondary" className="mb-3">Self-submitted feedback</Badge>
           <h1 className="text-2xl font-semibold tracking-normal md:text-3xl">
             Self-submitted feedback reports
           </h1>
@@ -81,7 +81,7 @@ export default async function ManualReportsPage({
         <section className="space-y-4">
           <div>
             <h2 className="text-xl font-semibold">
-              {hasSelectedRep ? `${selectedRepName || "Selected rep"}'s manual reports` : "Choose a rep"}
+              {hasSelectedRep ? `${selectedRepName || "Selected rep"}'s self-submitted reports` : "Choose a rep"}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {hasSelectedRep
@@ -196,7 +196,7 @@ function SelectionState() {
       <UserRound className="mx-auto mb-3 size-8 text-muted-foreground" />
       <h3 className="text-base font-semibold">No rep selected</h3>
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-        Completed manual reports are grouped by rep.
+        Self-submitted reports are grouped by rep.
       </p>
     </div>
   );
@@ -206,9 +206,9 @@ function EmptyState({ repName }: { repName: string }) {
   return (
     <div className="rounded-xl border bg-card/80 p-8 text-center">
       <FileText className="mx-auto mb-3 size-8 text-muted-foreground" />
-      <h3 className="text-base font-semibold">No completed manual reports found</h3>
+      <h3 className="text-base font-semibold">No completed self-submitted reports found</h3>
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-        {repName ? `${repName} does not have completed manual reports yet.` : "This rep does not have completed manual reports yet."}
+        {repName ? `${repName} does not have completed self-submitted reports yet.` : "This rep does not have completed self-submitted reports yet."}
       </p>
     </div>
   );

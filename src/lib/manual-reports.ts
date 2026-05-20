@@ -34,7 +34,7 @@ export const manualSubmitSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["rep_name"],
-        message: "Rep name is required",
+        message: "Rep name is required so the report can be saved under your name",
       });
     }
 
