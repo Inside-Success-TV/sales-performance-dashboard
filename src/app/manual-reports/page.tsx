@@ -12,12 +12,14 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { ReportFilters } from "@/components/dashboard/report-filters";
 import { RepPicker } from "@/components/dashboard/rep-picker";
 import { getManualFeedbackReports } from "@/lib/db";
 import { formatMiamiDateTime, truncate } from "@/lib/format";
 import { isManualFeedbackEnabled } from "@/lib/manual-reports";
+import { readFilters, type RawSearchParams } from "@/lib/search-params";
 import { slugify } from "@/lib/slug";
-import type { ManualFeedbackReport, RepSummary } from "@/lib/types";
+import type { DashboardFilters, ManualFeedbackReport, RepSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { notFound } from "next/navigation";
 
@@ -26,11 +28,12 @@ export const dynamic = "force-dynamic";
 export default async function ManualReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ rep?: string | string[] }>;
+  searchParams: Promise<RawSearchParams>;
 }) {
   if (!isManualFeedbackEnabled()) notFound();
 
-  const selectedRepSlug = readRepParam(await searchParams);
+  const filters = readFilters(await searchParams);
+  const selectedRepSlug = filters.rep;
   const allReports = await getManualFeedbackReports(500);
   const reps = buildManualRepSummaries(allReports);
   const selectedRepName =
@@ -38,9 +41,13 @@ export default async function ManualReportsPage({
     allReports.find((report) => slugify(report.rep_name) === selectedRepSlug)?.rep_name ||
     "";
   const reports = selectedRepSlug
-    ? allReports.filter((report) => slugify(report.rep_name) === selectedRepSlug)
+    ? filterManualReports(
+        allReports.filter((report) => slugify(report.rep_name) === selectedRepSlug),
+        filters,
+      )
     : [];
   const hasSelectedRep = Boolean(selectedRepSlug);
+  const hasFilters = Boolean(filters.q || filters.date);
 
   return (
     <main className="dashboard-page min-h-screen bg-background">
@@ -72,7 +79,7 @@ export default async function ManualReportsPage({
             <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
               <Badge variant="outline" className="gap-1 rounded-md bg-background/70">
                 <ArrowDownWideNarrow className="size-3.5" />
-                Newest received first
+                Newest completed first
               </Badge>
             </div>
           ) : null}
@@ -85,19 +92,29 @@ export default async function ManualReportsPage({
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {hasSelectedRep
-                ? `${reports.length} completed manual ${reports.length === 1 ? "report" : "reports"} received by the dashboard.`
+                ? `${reports.length} completed manual ${reports.length === 1 ? "report" : "reports"} found.`
                 : "The manual report list appears after a rep is selected."}
             </p>
           </div>
 
           {hasSelectedRep ? (
-            reports.length ? (
-              <div className="grid gap-3">
-                {reports.map((report) => <ManualReportCard key={report.public_id} report={report} />)}
-              </div>
-            ) : (
-              <EmptyState repName={selectedRepName} />
-            )
+            <>
+              <ReportFilters
+                action="/manual-reports"
+                filters={filters}
+                repSlug={selectedRepSlug}
+                clearHref={`/manual-reports?rep=${encodeURIComponent(selectedRepSlug || "")}`}
+                searchPlaceholder="Client, report text, or date"
+                dateLabel="Completed date"
+              />
+              {reports.length ? (
+                <div className="grid gap-3">
+                  {reports.map((report) => <ManualReportCard key={report.public_id} report={report} />)}
+                </div>
+              ) : (
+                <EmptyState repName={selectedRepName} hasFilters={hasFilters} />
+              )}
+            </>
           ) : (
             <SelectionState />
           )}
@@ -105,11 +122,6 @@ export default async function ManualReportsPage({
       </div>
     </main>
   );
-}
-
-function readRepParam(searchParams: { rep?: string | string[] }) {
-  const rep = searchParams.rep;
-  return Array.isArray(rep) ? rep[0] : rep;
 }
 
 function buildManualRepSummaries(reports: ManualFeedbackReport[]): RepSummary[] {
@@ -135,6 +147,58 @@ function buildManualRepSummaries(reports: ManualFeedbackReport[]): RepSummary[] 
   }
 
   return [...reps.values()].sort((a, b) => a.rep_name.localeCompare(b.rep_name));
+}
+
+function filterManualReports(reports: ManualFeedbackReport[], filters: DashboardFilters) {
+  const query = filters.q?.trim().toLowerCase();
+
+  return reports.filter((report) => {
+    if (filters.date && getMiamiDateKey(report.updated_at) !== filters.date) return false;
+    if (!query) return true;
+
+    return buildManualSearchText(report).includes(query);
+  });
+}
+
+function buildManualSearchText(report: ManualFeedbackReport) {
+  return [
+    report.rep_name,
+    report.client_name,
+    report.one_line_verdict,
+    report.biggest_strength,
+    report.biggest_fix,
+    report.coaching_tip,
+    report.rudys_note,
+    report.source_type,
+    report.input_type,
+    report.call_status,
+    formatMiamiDateTime(report.updated_at),
+    getMiamiDateKey(report.updated_at),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function getMiamiDateKey(value: string | null | undefined) {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  return year && month && day ? `${year}-${month}-${day}` : "";
 }
 
 function ManualReportCard({ report }: { report: ManualFeedbackReport }) {
@@ -167,7 +231,7 @@ function ManualReportCard({ report }: { report: ManualFeedbackReport }) {
             </span>
             <span className="inline-flex items-center gap-1">
               <CalendarDays className="size-3.5" />
-              {formatMiamiDateTime(report.updated_at)}
+              Completed {formatMiamiDateTime(report.updated_at)}
             </span>
             {sourceLabel ? (
               <span className="capitalize">
@@ -202,13 +266,17 @@ function SelectionState() {
   );
 }
 
-function EmptyState({ repName }: { repName: string }) {
+function EmptyState({ repName, hasFilters }: { repName: string; hasFilters?: boolean }) {
   return (
     <div className="rounded-xl border bg-card/80 p-8 text-center">
       <FileText className="mx-auto mb-3 size-8 text-muted-foreground" />
       <h3 className="text-base font-semibold">No completed self-submitted reports found</h3>
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-        {repName ? `${repName} does not have completed self-submitted reports yet.` : "This rep does not have completed self-submitted reports yet."}
+        {hasFilters
+          ? "No self-submitted reports match that search."
+          : repName
+            ? `${repName} does not have completed self-submitted reports yet.`
+            : "This rep does not have completed self-submitted reports yet."}
       </p>
     </div>
   );

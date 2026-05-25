@@ -10,9 +10,20 @@ type ReportFiltersProps = {
   filters: DashboardFilters;
   repSlug?: string;
   clearHref: string;
+  searchLabel?: string;
+  searchPlaceholder?: string;
+  dateLabel?: string;
 };
 
-export function ReportFilters({ action, filters, repSlug, clearHref }: ReportFiltersProps) {
+export function ReportFilters({
+  action,
+  filters,
+  repSlug,
+  clearHref,
+  searchLabel = "Find a report",
+  searchPlaceholder = "Client, meeting title, or date",
+  dateLabel = "Meeting date",
+}: ReportFiltersProps) {
   const hasFilters = Boolean(filters.q || filters.date);
 
   return (
@@ -20,20 +31,20 @@ export function ReportFilters({ action, filters, repSlug, clearHref }: ReportFil
       {repSlug ? <input type="hidden" name="rep" value={repSlug} /> : null}
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:items-end">
         <label className="grid gap-1.5 text-xs font-medium uppercase text-muted-foreground">
-          Find a report
+          {searchLabel}
           <span className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               name="q"
               defaultValue={filters.q || ""}
-              placeholder="Client, meeting title, or date"
+              placeholder={searchPlaceholder}
               className="pl-8"
             />
           </span>
         </label>
 
         <label className="grid gap-1.5 text-xs font-medium uppercase text-muted-foreground">
-          Meeting date
+          {dateLabel}
           <span className="relative">
             <CalendarDays className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input name="date" type="date" defaultValue={filters.date || ""} className="pl-8" />
