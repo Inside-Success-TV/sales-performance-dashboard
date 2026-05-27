@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { ManualReportStatus } from "@/components/dashboard/manual-report-status";
 import { getManualFeedbackReport } from "@/lib/db";
+import { resolveManualReportStatus } from "@/lib/manual-reports";
 
 export const dynamic = "force-dynamic";
 
@@ -14,5 +15,5 @@ export default async function SelfReportPage({
 
   if (!report) notFound();
 
-  return <ManualReportStatus initialReport={report} />;
+  return <ManualReportStatus initialReport={resolveManualReportStatus(report)} />;
 }

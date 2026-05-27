@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { normalizeStringList } from "@/lib/list-format";
-import type { JsonObject } from "@/lib/types";
+import type { JsonObject, ManualFeedbackReport } from "@/lib/types";
+
+const MANUAL_REPORT_TIMEOUT_MS = 20 * 60 * 1000;
+const WAITING_MANUAL_REPORT_STATUSES = new Set(["pending", "processing"]);
 
 const optionalString = z
   .union([z.string(), z.number(), z.boolean(), z.null()])
@@ -96,6 +99,27 @@ export type NormalizedManualCallback = ReturnType<typeof normalizeManualCallback
 
 export function isManualFeedbackEnabled() {
   return true;
+}
+
+export function resolveManualReportStatus(report: ManualFeedbackReport, now = new Date()) {
+  if (!isManualReportTimedOut(report, now)) return report;
+
+  return {
+    ...report,
+    status: "failed" as const,
+    refusal_reason:
+      report.refusal_reason ||
+      "The manual feedback workflow did not finish within the expected time. It may have failed before it could update this page.",
+  };
+}
+
+function isManualReportTimedOut(report: ManualFeedbackReport, now: Date) {
+  if (!WAITING_MANUAL_REPORT_STATUSES.has(report.status)) return false;
+
+  const lastUpdatedAt = new Date(report.updated_at || report.created_at).getTime();
+  if (!Number.isFinite(lastUpdatedAt)) return false;
+
+  return now.getTime() - lastUpdatedAt > MANUAL_REPORT_TIMEOUT_MS;
 }
 
 export function normalizeManualCallback(raw: unknown) {

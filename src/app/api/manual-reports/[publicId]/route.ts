@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getManualFeedbackReport } from "@/lib/db";
+import { resolveManualReportStatus } from "@/lib/manual-reports";
 
 export const runtime = "nodejs";
 
@@ -14,5 +15,5 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "Report not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ ok: true, report });
+  return NextResponse.json({ ok: true, report: resolveManualReportStatus(report) });
 }
