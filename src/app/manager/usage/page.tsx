@@ -120,7 +120,7 @@ export default async function ManagerUsagePage() {
 
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
-            title="Official views today"
+            title="Official views in last 24 hours"
             value={analytics.official.report_views_today}
             description="Official coaching reports opened"
             icon={Eye}
