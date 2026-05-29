@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { SalesCorrelationRep, UsageGroupKey } from "@/lib/sales-correlation";
@@ -62,6 +62,15 @@ export function SalesImpactScatter({ reps }: { reps: SalesCorrelationRep[] }) {
     setSelectedSlug(repSlug);
   }
 
+  useEffect(() => {
+    function clearSelection() {
+      setSelectedSlug(null);
+    }
+
+    document.addEventListener("click", clearSelection);
+    return () => document.removeEventListener("click", clearSelection);
+  }, []);
+
   if (!eligibleReps.length) {
     return (
       <div className="rounded-lg border border-dashed bg-background/60 p-6 text-center text-sm text-muted-foreground">
@@ -71,7 +80,7 @@ export function SalesImpactScatter({ reps }: { reps: SalesCorrelationRep[] }) {
   }
 
   return (
-    <div className="grid gap-4" onClick={() => setSelectedSlug(null)}>
+    <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1.5">
           {FILTERS.map((item) => (
