@@ -1,0 +1,124 @@
+import type { RepNoShowAnalytics } from "@/lib/rep-no-show";
+
+export type RepNoShowChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export function buildRepNoShowChatMessages(
+  analytics: RepNoShowAnalytics,
+  history: RepNoShowChatMessage[],
+) {
+  return [
+    {
+      role: "system" as const,
+      content: [
+        "You are the Magic Mike rep no-show analyst for Inside Success TV managers.",
+        "Answer only questions about the supplied rep no-show dashboard snapshot.",
+        "Use only the supplied snapshot. If the answer is not in the snapshot, say the page does not show that.",
+        "Default to concise manager-ready answers: 1-3 sentences, or up to 4 bullets when a list is useful.",
+        "This page is operational visibility, not sales coaching, compliance review, or legal analysis.",
+        "Keep Call 1 context clear. Rep no-shows are often Call 1, while coaching reports are normally Call 2+.",
+        "Use the exact configured assumptions for close rate and minimum package value.",
+        "Use phrases like estimated opportunity at risk, potential revenue protected, no-shows surfaced, and visibility created.",
+        "Do not say confirmed sales were missed or saved. Do not claim Magic Mike caused revenue changes.",
+        "If no-shows decreased, describe the reduction as potential revenue protected using the page formula.",
+        "If Airtable is not configured or no data is available, say that clearly and do not invent data.",
+        "Format cleanly with short paragraphs or simple markdown bullets. Do not return a wall of text.",
+      ].join("\n"),
+    },
+    {
+      role: "user" as const,
+      content: buildAnalyticsContext(analytics),
+    },
+    ...history.map((message) => ({
+      role: message.role,
+      content: message.content,
+    })),
+  ];
+}
+
+function buildAnalyticsContext(analytics: RepNoShowAnalytics) {
+  const { summary, topReps, recentNoShows, weekly } = analytics;
+
+  return [
+    "Current Magic Mike Rep No-Show Impact snapshot:",
+    `Selected period: last ${summary.periodDays} days`,
+    `Generated at: ${summary.generatedAt}`,
+    `Airtable read configured: ${summary.configured}`,
+    `Data error: ${summary.error || "none"}`,
+    `Records read from Airtable: ${summary.recordsRead}`,
+    `Eligible sales calls in period: ${summary.eligibleCalls}`,
+    `Eligible sales calls in previous period: ${summary.previousEligibleCalls}`,
+    `Rep no-shows in period: ${summary.repNoShows}`,
+    `Rep no-shows in previous period: ${summary.previousRepNoShows}`,
+    `Week-over-week no-show count change: ${summary.weekOverWeekChange}`,
+    `Call 1 rep no-shows in period: ${summary.call1NoShows}`,
+    `Call 2+ rep no-shows in period: ${summary.call2PlusNoShows}`,
+    `Rep no-show rate in period: ${formatPercent(summary.noShowRate)}`,
+    `Previous no-show rate: ${formatPercent(summary.previousNoShowRate)}`,
+    `Close-rate assumption: ${formatPercent(summary.closeRate)}`,
+    `Minimum package value assumption: ${formatCurrency(summary.minPackageValue)}`,
+    `Estimated opportunity at risk: ${formatCurrency(summary.estimatedOpportunityAtRisk)}`,
+    `Avoided no-shows vs previous period: ${summary.avoidedNoShows}`,
+    `Estimated revenue protected: ${formatCurrency(summary.estimatedRevenueProtected)}`,
+    "",
+    "Top reps by no-show count:",
+    topReps.length
+      ? topReps
+          .map((rep) =>
+            [
+              rep.repName,
+              `eligible calls ${rep.eligibleCalls}`,
+              `rep no-shows ${rep.noShows}`,
+              `Call 1 no-shows ${rep.call1NoShows}`,
+              `rate ${formatPercent(rep.noShowRate)}`,
+              `estimated opportunity ${formatCurrency(rep.estimatedOpportunityAtRisk)}`,
+              `latest ${rep.latestNoShowAt || "not available"}`,
+            ].join(" | "),
+          )
+          .join("\n")
+      : "No rep no-shows shown for the selected period.",
+    "",
+    "Recent no-show rows:",
+    recentNoShows.length
+      ? recentNoShows
+          .map((call) =>
+            [
+              call.callDate || "date unavailable",
+              call.repName,
+              call.clientName,
+              call.callNumber,
+              call.attendanceStatus || "status unavailable",
+              call.attendanceReason || "reason unavailable",
+            ].join(" | "),
+          )
+          .join("\n")
+      : "No recent no-shows shown for the selected period.",
+    "",
+    "Weekly trend:",
+    ...weekly.map((point) =>
+      `${point.label}: eligible calls ${point.eligibleCalls}, rep no-shows ${point.noShows}, estimated opportunity ${formatCurrency(point.estimatedOpportunityAtRisk)}`,
+    ),
+    "",
+    "Formula:",
+    "Estimated opportunity at risk = rep no-shows x close-rate assumption x minimum package value.",
+    "Estimated revenue protected = avoided no-shows vs previous period x close-rate assumption x minimum package value.",
+    "",
+    "Interpretation guardrails:",
+    "These are conservative estimates, not confirmed missed sales.",
+    "The manager should use this page for awareness, accountability, and follow-up prioritization.",
+  ].join("\n");
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatPercent(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
