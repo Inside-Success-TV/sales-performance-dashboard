@@ -106,7 +106,7 @@ export type RepNoShowSummary = {
 export type RepNoShowAnalytics = {
   summary: RepNoShowSummary;
   topReps: RepNoShowRepRow[];
-  recentNoShows: RepNoShowCall[];
+  noShowLog: RepNoShowCall[];
   weekly: RepNoShowWeeklyPoint[];
 };
 
@@ -156,7 +156,10 @@ export async function getRepNoShowAnalytics(
   }
 
   try {
-    const records = await fetchAirtableRecords(token, HISTORY_DAYS);
+    const records = await fetchAirtableRecords(
+      token,
+      Math.max(HISTORY_DAYS, differenceInDays(trackingStartedAt, generatedAt) + 2),
+    );
     const calls = records.map(normalizeAirtableRecord).filter(isEligibleCall).filter(isTrackedCall);
     const periodEnd = generatedAt;
     const requestedPeriodStart = addDays(periodEnd, -periodDays);
@@ -170,6 +173,9 @@ export async function getRepNoShowAnalytics(
       : [];
     const currentNoShows = currentCalls.filter((call) => call.noShow);
     const previousNoShows = previousCalls.filter((call) => call.noShow);
+    const noShowLog = calls.filter((call) =>
+      call.noShow && isInWindow(call.callDate, trackingStartedAt, periodEnd)
+    );
     const topReps = buildRepRows(currentCalls, closeRate, minPackageValue);
     const weekly = buildTrend(calls, generatedAt, trackingStartedAt, closeRate, minPackageValue);
     const weekOverWeekChange = comparisonAvailable
@@ -204,9 +210,8 @@ export async function getRepNoShowAnalytics(
         estimatedRevenueProtected: estimateValue(avoidedNoShows, closeRate, minPackageValue),
       },
       topReps,
-      recentNoShows: currentNoShows
+      noShowLog: noShowLog
         .sort(sortCallsDesc)
-        .slice(0, 12)
         .map(stripNoShowFlag),
       weekly,
     };
@@ -513,7 +518,7 @@ function getFallbackAnalytics(
       estimatedRevenueProtected: 0,
     },
     topReps: [],
-    recentNoShows: [],
+    noShowLog: [],
     weekly: buildTrend([], generatedAt, trackingStartedAt, closeRate, minPackageValue),
   };
 }

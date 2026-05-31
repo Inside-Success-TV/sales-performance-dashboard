@@ -7,13 +7,12 @@ import {
   CalendarDays,
   Clock3,
   DollarSign,
-  ExternalLink,
-  FileText,
   ShieldCheck,
   UserX,
   Users,
   type LucideIcon,
 } from "lucide-react";
+import { RepNoShowLogCard } from "@/components/dashboard/rep-no-show-log-card";
 import { RepNoShowChatPanel } from "@/components/dashboard/rep-no-show-chat-panel";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -32,7 +31,6 @@ import {
   normalizeRepNoShowWindow,
   REP_NO_SHOW_WINDOWS,
   type RepNoShowAnalytics,
-  type RepNoShowCall,
   type RepNoShowRepRow,
 } from "@/lib/rep-no-show";
 import { cn } from "@/lib/utils";
@@ -148,7 +146,10 @@ export default async function RepNoShowPage({
           <TopRepsCard reps={analytics.topReps} />
         </section>
 
-        <RecentNoShowsCard calls={analytics.recentNoShows} />
+        <RepNoShowLogCard
+          calls={analytics.noShowLog}
+          trackingStartedAt={analytics.summary.trackingStartedAt}
+        />
 
         <p className="max-w-4xl text-xs leading-5 text-muted-foreground">
           Estimates are directional and conservative. The current formula uses rep no-shows x
@@ -382,77 +383,6 @@ function TopRepsCard({ reps }: { reps: RepNoShowRepRow[] }) {
   );
 }
 
-function RecentNoShowsCard({ calls }: { calls: RepNoShowCall[] }) {
-  return (
-    <Card className="dashboard-card border bg-card/95">
-      <CardHeader className="border-b">
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="size-4" />
-          Recent No-Shows
-        </CardTitle>
-        <CardDescription>Enough context for manager follow-up without a crowded audit table.</CardDescription>
-      </CardHeader>
-      <CardContent className="px-0">
-        {calls.length ? (
-          <div className="divide-y">
-            {calls.map((call) => (
-              <div
-                key={call.id}
-                className="grid gap-3 px-4 py-4 lg:grid-cols-[12rem_minmax(0,1fr)_10rem] lg:items-start"
-              >
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">{formatMiamiDateTime(call.callDate)}</p>
-                  <Badge variant="outline">{call.callNumber}</Badge>
-                </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <p className="font-medium">{call.repName}</p>
-                    <span className="text-xs text-muted-foreground">with</span>
-                    <p className="text-sm text-muted-foreground">{call.clientName}</p>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">
-                    {formatNoShowReason(call)}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2 lg:justify-end">
-                  <ExternalLinkButton href={call.meetingLink} label="Zoom" />
-                  <ExternalLinkButton href={call.transcriptLink} label="Transcript" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="px-4">
-            <EmptyState text="No recent rep no-shows found for this period." />
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function ExternalLinkButton({ href, label }: { href: string; label: string }) {
-  if (!href) {
-    return (
-      <span className="text-xs text-muted-foreground">
-        {label === "Zoom" ? "No Zoom" : "No transcript"}
-      </span>
-    );
-  }
-
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="inline-flex h-8 items-center gap-1 rounded-md border bg-background px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-    >
-      {label}
-      <ExternalLink className="size-3" />
-    </a>
-  );
-}
-
 function EmptyState({ text }: { text: string }) {
   return (
     <div className="rounded-lg border bg-background/80 p-4 text-sm leading-6 text-muted-foreground">
@@ -495,22 +425,6 @@ function getPeriodPhrase(analytics: RepNoShowAnalytics) {
   }
 
   return `in the last ${analytics.summary.periodDays} days`;
-}
-
-function formatNoShowReason(call: RepNoShowCall) {
-  const rawReason = call.attendanceReason || call.attendanceStatus || "Rep absence detected";
-  const attendanceReason = rawReason.match(/attendance_status\s*=\s*(?:sales_)?rep_no_show\s*:\s*([^|]+)/i);
-  const decisionReason = rawReason.match(/(?:sales_)?rep_no_show\s*:\s*([^|]+)/i);
-  const cleaned = (attendanceReason?.[1] || decisionReason?.[1] || rawReason)
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return truncateText(cleaned || "Rep absence detected", 190);
-}
-
-function truncateText(value: string, maxLength: number) {
-  if (value.length <= maxLength) return value;
-  return `${value.slice(0, maxLength - 1).trim()}...`;
 }
 
 function formatShortDate(value: string | Date | null | undefined) {

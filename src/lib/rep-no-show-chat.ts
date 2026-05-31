@@ -40,7 +40,8 @@ export function buildRepNoShowChatMessages(
 }
 
 function buildAnalyticsContext(analytics: RepNoShowAnalytics) {
-  const { summary, topReps, recentNoShows, weekly } = analytics;
+  const { summary, topReps, noShowLog, weekly } = analytics;
+  const chatNoShowRows = noShowLog.slice(0, 50);
 
   return [
     "Current Magic Mike Rep No-Show Impact snapshot:",
@@ -84,9 +85,10 @@ function buildAnalyticsContext(analytics: RepNoShowAnalytics) {
           .join("\n")
       : "No rep no-shows shown for the selected period.",
     "",
-    "Recent no-show rows:",
-    recentNoShows.length
-      ? recentNoShows
+    `All detected no-show log count since tracking activation: ${noShowLog.length}`,
+    "No-show log rows included below, newest first:",
+    chatNoShowRows.length
+      ? chatNoShowRows
           .map((call) =>
             [
               call.callDate || "date unavailable",
@@ -98,7 +100,10 @@ function buildAnalyticsContext(analytics: RepNoShowAnalytics) {
             ].join(" | "),
           )
           .join("\n")
-      : "No recent no-shows shown for the selected period.",
+      : "No rep no-shows have been detected since tracking activation.",
+    noShowLog.length > chatNoShowRows.length
+      ? `Additional no-show log rows not included in chat context: ${noShowLog.length - chatNoShowRows.length}`
+      : "",
     "",
     "Weekly trend:",
     ...weekly.map((point) =>
