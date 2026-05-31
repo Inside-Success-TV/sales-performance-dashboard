@@ -39,6 +39,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Rep No-Show Impact | Magic Mike Bot",
+  description: "Hidden manager view for tracking rep no-shows across sales calls.",
   robots: {
     index: false,
     follow: false,
