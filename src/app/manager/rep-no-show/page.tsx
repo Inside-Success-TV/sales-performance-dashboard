@@ -34,7 +34,6 @@ import {
   type RepNoShowAnalytics,
   type RepNoShowCall,
   type RepNoShowRepRow,
-  type RepNoShowWeeklyPoint,
 } from "@/lib/rep-no-show";
 import { cn } from "@/lib/utils";
 
@@ -79,6 +78,9 @@ export default async function RepNoShowPage({
                   <UserX className="size-3.5" />
                   Operations visibility
                 </Badge>
+                <Badge variant="outline" className="bg-background/70">
+                  Tracking since {formatShortDate(analytics.summary.trackingStartedAt)}
+                </Badge>
                 {!analytics.summary.configured ? (
                   <Badge variant="destructive">Airtable not connected</Badge>
                 ) : null}
@@ -119,13 +121,13 @@ export default async function RepNoShowPage({
             icon={UserX}
             title="Rep no-shows"
             value={formatNumber(analytics.summary.repNoShows)}
-            description={`Last ${analytics.summary.periodDays} days`}
+            description={getPeriodDescription(analytics)}
           />
           <MetricCard
             icon={Users}
             title="No-show rate"
             value={formatPercent(analytics.summary.noShowRate)}
-            description={`${formatNumber(analytics.summary.eligibleCalls)} eligible calls`}
+            description={`${formatNumber(analytics.summary.eligibleCalls)} tracked calls`}
           />
           <MetricCard
             icon={DollarSign}
@@ -142,7 +144,7 @@ export default async function RepNoShowPage({
         </section>
 
         <section className="grid gap-5 lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)]">
-          <WeeklyTrendCard weekly={analytics.weekly} />
+          <TrendCard analytics={analytics} />
           <TopRepsCard reps={analytics.topReps} />
         </section>
 
@@ -195,6 +197,7 @@ function ExecutiveReadout({ analytics }: { analytics: RepNoShowAnalytics }) {
   const change = analytics.summary.weekOverWeekChange;
   const improved = change < 0;
   const flat = change === 0;
+  const comparisonAvailable = analytics.summary.comparisonAvailable;
 
   return (
     <Card className="dashboard-card border bg-card/95">
@@ -212,34 +215,56 @@ function ExecutiveReadout({ analytics }: { analytics: RepNoShowAnalytics }) {
             {getExecutiveHeadline(analytics)}
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Rep no-shows are tracked from accepted sales-call attendance signals, including Call 1.
-            Coaching reports remain focused on Call 2+ performance.
+            Rep no-shows are tracked only from reliable attendance signals after Call 1 no-show
+            detection was activated. Coaching reports remain focused on Call 2+ performance.
           </p>
         </div>
 
         <div className="rounded-xl border bg-background/80 p-4 shadow-xs">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-              Change vs prior period
-            </p>
-            <Badge variant={improved ? "secondary" : flat ? "outline" : "destructive"}>
-              {improved ? "Improved" : flat ? "Flat" : "Higher"}
-            </Badge>
-          </div>
-          <p className={cn("mt-3 flex items-center gap-2 text-3xl font-semibold tracking-normal", improved && "text-primary", !improved && !flat && "text-destructive")}>
-            {improved ? <ArrowDownRight className="size-6" /> : <ArrowUpRight className="size-6" />}
-            {change > 0 ? "+" : ""}
-            {formatNumber(change)}
-          </p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Previous period had {formatNumber(analytics.summary.previousRepNoShows)} rep no-shows.
-          </p>
-          <div className="mt-4 rounded-lg border bg-card/80 px-3 py-2">
-            <p className="text-xs text-muted-foreground">Potential revenue protected</p>
-            <p className="mt-1 text-xl font-semibold">
-              {formatCurrency(analytics.summary.estimatedRevenueProtected)}
-            </p>
-          </div>
+          {comparisonAvailable ? (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
+                  Change vs prior period
+                </p>
+                <Badge variant={improved ? "secondary" : flat ? "outline" : "destructive"}>
+                  {improved ? "Improved" : flat ? "Flat" : "Higher"}
+                </Badge>
+              </div>
+              <p className={cn("mt-3 flex items-center gap-2 text-3xl font-semibold tracking-normal", improved && "text-primary", !improved && !flat && "text-destructive")}>
+                {improved ? <ArrowDownRight className="size-6" /> : <ArrowUpRight className="size-6" />}
+                {change > 0 ? "+" : ""}
+                {formatNumber(change)}
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Previous period had {formatNumber(analytics.summary.previousRepNoShows)} rep no-shows.
+              </p>
+              <div className="mt-4 rounded-lg border bg-card/80 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Potential revenue protected</p>
+                <p className="mt-1 text-xl font-semibold">
+                  {formatCurrency(analytics.summary.estimatedRevenueProtected)}
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
+                  Baseline status
+                </p>
+                <Badge variant="outline">Building</Badge>
+              </div>
+              <p className="mt-3 text-2xl font-semibold tracking-normal">No fair prior comparison yet</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Call 1 rep no-show tracking started {formatShortDate(analytics.summary.trackingStartedAt)}.
+                Older periods are hidden so the trend does not compare against incomplete detection.
+              </p>
+              <div className="mt-4 rounded-lg border bg-card/80 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Comparable baseline</p>
+                <p className="mt-1 text-xl font-semibold">Pending</p>
+              </div>
+            </>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -273,7 +298,8 @@ function MetricCard({
   );
 }
 
-function WeeklyTrendCard({ weekly }: { weekly: RepNoShowWeeklyPoint[] }) {
+function TrendCard({ analytics }: { analytics: RepNoShowAnalytics }) {
+  const { weekly } = analytics;
   const maxNoShows = Math.max(1, ...weekly.map((point) => point.noShows));
 
   return (
@@ -281,25 +307,31 @@ function WeeklyTrendCard({ weekly }: { weekly: RepNoShowWeeklyPoint[] }) {
       <CardHeader className="border-b">
         <CardTitle className="flex items-center gap-2">
           <CalendarDays className="size-4" />
-          Weekly Trend
+          Trend Since Activation
         </CardTitle>
-        <CardDescription>Rep no-shows surfaced from accepted sales-call attendance.</CardDescription>
+        <CardDescription>
+          Only reliable tracking dates from {formatShortDate(analytics.summary.trackingStartedAt)} onward.
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-3">
-          {weekly.map((point) => (
-            <div key={point.weekStart} className="grid grid-cols-[4.5rem_minmax(0,1fr)_3rem] items-center gap-3 text-sm">
-              <span className="text-xs text-muted-foreground">{point.label}</span>
-              <div className="h-8 rounded-md border bg-background">
-                <div
-                  className="h-full rounded-md bg-primary/80"
-                  style={{ width: `${Math.max(4, (point.noShows / maxNoShows) * 100)}%` }}
-                />
+        {weekly.length ? (
+          <div className="grid gap-3">
+            {weekly.map((point) => (
+              <div key={point.weekStart} className="grid grid-cols-[4.5rem_minmax(0,1fr)_3rem] items-center gap-3 text-sm">
+                <span className="text-xs text-muted-foreground">{point.label}</span>
+                <div className="h-8 overflow-hidden rounded-md border bg-background">
+                  <div
+                    className="h-full rounded-md bg-primary/80"
+                    style={{ width: point.noShows > 0 ? `${Math.max(8, (point.noShows / maxNoShows) * 100)}%` : 0 }}
+                  />
+                </div>
+                <span className="text-right font-medium">{formatNumber(point.noShows)}</span>
               </div>
-              <span className="text-right font-medium">{formatNumber(point.noShows)}</span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState text="No tracked days are available yet." />
+        )}
       </CardContent>
     </Card>
   );
@@ -332,7 +364,7 @@ function TopRepsCard({ reps }: { reps: RepNoShowRepRow[] }) {
                   <TableCell>
                     <div className="font-medium">{rep.repName}</div>
                     <div className="text-xs text-muted-foreground">
-                      {formatNumber(rep.call1NoShows)} Call 1 / {formatNumber(rep.eligibleCalls)} calls
+                      {formatNumber(rep.call1NoShows)} Call 1 / {formatNumber(rep.eligibleCalls)} tracked calls
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-medium">{formatNumber(rep.noShows)}</TableCell>
@@ -360,43 +392,39 @@ function RecentNoShowsCard({ calls }: { calls: RepNoShowCall[] }) {
         </CardTitle>
         <CardDescription>Enough context for manager follow-up without a crowded audit table.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-0">
         {calls.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Rep</TableHead>
-                <TableHead>Client</TableHead>
-                <TableHead>Call</TableHead>
-                <TableHead>Reason</TableHead>
-                <TableHead className="text-right">Links</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {calls.map((call) => (
-                <TableRow key={call.id}>
-                  <TableCell className="min-w-36 text-sm">{formatMiamiDateTime(call.callDate)}</TableCell>
-                  <TableCell className="font-medium">{call.repName}</TableCell>
-                  <TableCell>{call.clientName}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{call.callNumber}</Badge>
-                  </TableCell>
-                  <TableCell className="max-w-sm text-sm text-muted-foreground">
-                    {call.attendanceReason || call.attendanceStatus || "Rep absence detected"}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-2">
-                      <ExternalLinkButton href={call.meetingLink} label="Zoom" />
-                      <ExternalLinkButton href={call.transcriptLink} label="Transcript" />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="divide-y">
+            {calls.map((call) => (
+              <div
+                key={call.id}
+                className="grid gap-3 px-4 py-4 lg:grid-cols-[12rem_minmax(0,1fr)_10rem] lg:items-start"
+              >
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">{formatMiamiDateTime(call.callDate)}</p>
+                  <Badge variant="outline">{call.callNumber}</Badge>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <p className="font-medium">{call.repName}</p>
+                    <span className="text-xs text-muted-foreground">with</span>
+                    <p className="text-sm text-muted-foreground">{call.clientName}</p>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">
+                    {formatNoShowReason(call)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <ExternalLinkButton href={call.meetingLink} label="Zoom" />
+                  <ExternalLinkButton href={call.transcriptLink} label="Transcript" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
-          <EmptyState text="No recent rep no-shows found for this period." />
+          <div className="px-4">
+            <EmptyState text="No recent rep no-shows found for this period." />
+          </div>
         )}
       </CardContent>
     </Card>
@@ -417,7 +445,7 @@ function ExternalLinkButton({ href, label }: { href: string; label: string }) {
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className="inline-flex h-8 items-center gap-1 rounded-md border bg-background px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
     >
       {label}
       <ExternalLink className="size-3" />
@@ -439,10 +467,62 @@ function getExecutiveHeadline(analytics: RepNoShowAnalytics) {
   }
 
   if (analytics.summary.repNoShows === 0) {
-    return "No rep no-shows surfaced in the selected period.";
+    return `No rep no-shows surfaced ${getPeriodPhrase(analytics)}.`;
   }
 
-  return `${formatNumber(analytics.summary.repNoShows)} rep no-shows surfaced, with ${formatCurrency(analytics.summary.estimatedOpportunityAtRisk)} in estimated opportunity at risk.`;
+  return `${formatNumber(analytics.summary.repNoShows)} rep no-shows surfaced ${getPeriodPhrase(analytics)}, with ${formatCurrency(analytics.summary.estimatedOpportunityAtRisk)} in estimated opportunity at risk.`;
+}
+
+function getPeriodDescription(analytics: RepNoShowAnalytics) {
+  const requestedStart = new Date(analytics.summary.generatedAt);
+  requestedStart.setUTCDate(requestedStart.getUTCDate() - analytics.summary.periodDays);
+  const effectiveStart = new Date(analytics.summary.effectivePeriodStart);
+
+  if (Number.isFinite(effectiveStart.getTime()) && effectiveStart > requestedStart) {
+    return `Since ${formatShortDate(analytics.summary.effectivePeriodStart)}`;
+  }
+
+  return `Last ${analytics.summary.periodDays} days`;
+}
+
+function getPeriodPhrase(analytics: RepNoShowAnalytics) {
+  const requestedStart = new Date(analytics.summary.generatedAt);
+  requestedStart.setUTCDate(requestedStart.getUTCDate() - analytics.summary.periodDays);
+  const effectiveStart = new Date(analytics.summary.effectivePeriodStart);
+
+  if (Number.isFinite(effectiveStart.getTime()) && effectiveStart > requestedStart) {
+    return `since ${formatShortDate(analytics.summary.effectivePeriodStart)}`;
+  }
+
+  return `in the last ${analytics.summary.periodDays} days`;
+}
+
+function formatNoShowReason(call: RepNoShowCall) {
+  const rawReason = call.attendanceReason || call.attendanceStatus || "Rep absence detected";
+  const attendanceReason = rawReason.match(/attendance_status\s*=\s*(?:sales_)?rep_no_show\s*:\s*([^|]+)/i);
+  const decisionReason = rawReason.match(/(?:sales_)?rep_no_show\s*:\s*([^|]+)/i);
+  const cleaned = (attendanceReason?.[1] || decisionReason?.[1] || rawReason)
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return truncateText(cleaned || "Rep absence detected", 190);
+}
+
+function truncateText(value: string, maxLength: number) {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1).trim()}...`;
+}
+
+function formatShortDate(value: string | Date | null | undefined) {
+  if (!value) return "tracking start";
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "tracking start";
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+  }).format(date);
 }
 
 function formatNumber(value: number) {

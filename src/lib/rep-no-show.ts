@@ -7,6 +7,7 @@ const DEFAULT_AIRTABLE_BASE_ID = "appNIvRt5uouRrcZ6";
 const DEFAULT_AIRTABLE_TABLE_ID = "tblD1VHKC49agh9QZ";
 const DEFAULT_CLOSE_RATE = 0.1;
 const DEFAULT_MIN_PACKAGE_VALUE = 10000;
+const DEFAULT_TRACKING_START_DATE = "2026-05-29T04:00:00.000Z";
 const HISTORY_DAYS = 120;
 const WEEK_COUNT = 8;
 
@@ -81,6 +82,9 @@ export type RepNoShowSummary = {
   configured: boolean;
   generatedAt: string;
   periodDays: RepNoShowWindow;
+  trackingStartedAt: string;
+  effectivePeriodStart: string;
+  comparisonAvailable: boolean;
   closeRate: number;
   minPackageValue: number;
   recordsRead: number;
@@ -108,6 +112,7 @@ export type RepNoShowAnalytics = {
 
 type NormalizedCall = RepNoShowCall & {
   noShow: boolean;
+  tracked: boolean;
 };
 
 export function normalizeRepNoShowWindow(value: string | string[] | undefined): RepNoShowWindow {
@@ -127,7 +132,17 @@ export async function getRepNoShowAnalytics(
     process.env.REP_NO_SHOW_MIN_PACKAGE_VALUE,
     DEFAULT_MIN_PACKAGE_VALUE,
   );
-  const fallback = getFallbackAnalytics(generatedAt, periodDays, closeRate, minPackageValue);
+  const trackingStartedAt = parseDate(
+    process.env.REP_NO_SHOW_TRACKING_START_DATE,
+    DEFAULT_TRACKING_START_DATE,
+  );
+  const fallback = getFallbackAnalytics(
+    generatedAt,
+    periodDays,
+    closeRate,
+    minPackageValue,
+    trackingStartedAt,
+  );
   const token = getAirtableToken();
 
   if (!token) {
@@ -142,25 +157,36 @@ export async function getRepNoShowAnalytics(
 
   try {
     const records = await fetchAirtableRecords(token, HISTORY_DAYS);
-    const calls = records.map(normalizeAirtableRecord).filter(isEligibleCall);
+    const calls = records.map(normalizeAirtableRecord).filter(isEligibleCall).filter(isTrackedCall);
     const periodEnd = generatedAt;
-    const periodStart = addDays(periodEnd, -periodDays);
-    const previousStart = addDays(periodStart, -periodDays);
+    const requestedPeriodStart = addDays(periodEnd, -periodDays);
+    const periodStart = maxDate(requestedPeriodStart, trackingStartedAt);
+    const previousStart = addDays(requestedPeriodStart, -periodDays);
+    const comparisonAvailable = previousStart >= trackingStartedAt;
 
     const currentCalls = calls.filter((call) => isInWindow(call.callDate, periodStart, periodEnd));
-    const previousCalls = calls.filter((call) => isInWindow(call.callDate, previousStart, periodStart));
+    const previousCalls = comparisonAvailable
+      ? calls.filter((call) => isInWindow(call.callDate, previousStart, requestedPeriodStart))
+      : [];
     const currentNoShows = currentCalls.filter((call) => call.noShow);
     const previousNoShows = previousCalls.filter((call) => call.noShow);
     const topReps = buildRepRows(currentCalls, closeRate, minPackageValue);
-    const weekly = buildWeeklyTrend(calls, generatedAt, closeRate, minPackageValue);
-    const weekOverWeekChange = currentNoShows.length - previousNoShows.length;
-    const avoidedNoShows = Math.max(0, previousNoShows.length - currentNoShows.length);
+    const weekly = buildTrend(calls, generatedAt, trackingStartedAt, closeRate, minPackageValue);
+    const weekOverWeekChange = comparisonAvailable
+      ? currentNoShows.length - previousNoShows.length
+      : 0;
+    const avoidedNoShows = comparisonAvailable
+      ? Math.max(0, previousNoShows.length - currentNoShows.length)
+      : 0;
 
     return {
       summary: {
         configured: true,
         generatedAt: generatedAt.toISOString(),
         periodDays,
+        trackingStartedAt: trackingStartedAt.toISOString(),
+        effectivePeriodStart: periodStart.toISOString(),
+        comparisonAvailable,
         closeRate,
         minPackageValue,
         recordsRead: records.length,
@@ -270,6 +296,7 @@ function normalizeAirtableRecord(record: AirtableRecord): NormalizedCall {
     attendanceReason: aiDecisionReason,
     source: fieldString(fields, "Source"),
     noShow: isRepNoShow(attendanceStatus, aiDecisionReason),
+    tracked: Boolean(attendanceStatus),
   };
 }
 
@@ -280,6 +307,10 @@ function extractAttendanceStatus(reason: string) {
 
 function isEligibleCall(call: NormalizedCall) {
   return Boolean(call.callDate && call.repName);
+}
+
+function isTrackedCall(call: NormalizedCall) {
+  return call.tracked;
 }
 
 function isRepNoShow(status: string, reason: string) {
@@ -375,27 +406,77 @@ function buildRepRows(
     .slice(0, 12);
 }
 
+function buildTrend(
+  calls: NormalizedCall[],
+  generatedAt: Date,
+  trackingStartedAt: Date,
+  closeRate: number,
+  minPackageValue: number,
+): RepNoShowWeeklyPoint[] {
+  const ageDays = differenceInDays(trackingStartedAt, generatedAt);
+
+  if (ageDays < 21) {
+    return buildDailyTrend(calls, generatedAt, trackingStartedAt, closeRate, minPackageValue);
+  }
+
+  return buildWeeklyTrend(calls, generatedAt, trackingStartedAt, closeRate, minPackageValue);
+}
+
+function buildDailyTrend(
+  calls: NormalizedCall[],
+  generatedAt: Date,
+  trackingStartedAt: Date,
+  closeRate: number,
+  minPackageValue: number,
+): RepNoShowWeeklyPoint[] {
+  const firstDay = startOfDay(maxDate(addDays(generatedAt, -13), trackingStartedAt));
+  const currentDay = startOfDay(generatedAt);
+  const days = Math.max(1, differenceInDays(firstDay, currentDay) + 1);
+
+  return Array.from({ length: days }, (_, index) => {
+    const dayStart = addDays(firstDay, index);
+    const dayEnd = addDays(dayStart, 1);
+    const pointStart = maxDate(dayStart, trackingStartedAt);
+    const pointEnd = minDate(dayEnd, generatedAt);
+    const dayCalls = calls.filter((call) => isInWindow(call.callDate, pointStart, pointEnd));
+    const noShows = dayCalls.filter((call) => call.noShow).length;
+
+    return {
+      weekStart: pointStart.toISOString(),
+      label: formatTrendLabel(dayStart),
+      eligibleCalls: dayCalls.length,
+      noShows,
+      estimatedOpportunityAtRisk: estimateValue(noShows, closeRate, minPackageValue),
+    };
+  });
+}
+
 function buildWeeklyTrend(
   calls: NormalizedCall[],
   generatedAt: Date,
+  trackingStartedAt: Date,
   closeRate: number,
   minPackageValue: number,
 ): RepNoShowWeeklyPoint[] {
   const currentWeekStart = startOfWeek(generatedAt);
   return Array.from({ length: WEEK_COUNT }, (_, index) => {
-    const weekStart = addDays(currentWeekStart, -7 * (WEEK_COUNT - 1 - index));
-    const weekEnd = addDays(weekStart, 7);
+    const rawWeekStart = addDays(currentWeekStart, -7 * (WEEK_COUNT - 1 - index));
+    const rawWeekEnd = addDays(rawWeekStart, 7);
+    if (rawWeekEnd <= trackingStartedAt || rawWeekStart >= generatedAt) return null;
+
+    const weekStart = maxDate(rawWeekStart, trackingStartedAt);
+    const weekEnd = minDate(rawWeekEnd, generatedAt);
     const weekCalls = calls.filter((call) => isInWindow(call.callDate, weekStart, weekEnd));
     const noShows = weekCalls.filter((call) => call.noShow).length;
 
     return {
       weekStart: weekStart.toISOString(),
-      label: formatWeekLabel(weekStart),
+      label: formatTrendLabel(weekStart),
       eligibleCalls: weekCalls.length,
       noShows,
       estimatedOpportunityAtRisk: estimateValue(noShows, closeRate, minPackageValue),
     };
-  });
+  }).filter((point): point is RepNoShowWeeklyPoint => Boolean(point));
 }
 
 function getFallbackAnalytics(
@@ -403,12 +484,18 @@ function getFallbackAnalytics(
   periodDays: RepNoShowWindow,
   closeRate: number,
   minPackageValue: number,
+  trackingStartedAt: Date,
 ): RepNoShowAnalytics {
+  const effectivePeriodStart = maxDate(addDays(generatedAt, -periodDays), trackingStartedAt);
+
   return {
     summary: {
       configured: Boolean(getAirtableToken()),
       generatedAt: generatedAt.toISOString(),
       periodDays,
+      trackingStartedAt: trackingStartedAt.toISOString(),
+      effectivePeriodStart: effectivePeriodStart.toISOString(),
+      comparisonAvailable: false,
       closeRate,
       minPackageValue,
       recordsRead: 0,
@@ -427,7 +514,7 @@ function getFallbackAnalytics(
     },
     topReps: [],
     recentNoShows: [],
-    weekly: buildWeeklyTrend([], generatedAt, closeRate, minPackageValue),
+    weekly: buildTrend([], generatedAt, trackingStartedAt, closeRate, minPackageValue),
   };
 }
 
@@ -483,6 +570,12 @@ function parseMoney(value: string | undefined, fallback: number) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function parseDate(value: string | undefined, fallback: string) {
+  const parsed = new Date(value || fallback);
+  if (Number.isFinite(parsed.getTime())) return parsed;
+  return new Date(fallback);
+}
+
 function rate(count: number, total: number) {
   return total > 0 ? count / total : 0;
 }
@@ -495,6 +588,14 @@ function addDays(date: Date, days: number) {
   const next = new Date(date);
   next.setUTCDate(next.getUTCDate() + days);
   return next;
+}
+
+function maxDate(a: Date, b: Date) {
+  return a > b ? a : b;
+}
+
+function minDate(a: Date, b: Date) {
+  return a < b ? a : b;
 }
 
 function isInWindow(value: string | null, start: Date, end: Date) {
@@ -511,7 +612,16 @@ function startOfWeek(date: Date) {
   return weekStart;
 }
 
-function formatWeekLabel(date: Date) {
+function startOfDay(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function differenceInDays(start: Date, end: Date) {
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.floor((startOfDay(end).getTime() - startOfDay(start).getTime()) / millisecondsPerDay));
+}
+
+function formatTrendLabel(date: Date) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
