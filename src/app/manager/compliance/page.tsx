@@ -10,8 +10,8 @@ import {
   Search,
   ShieldCheck,
   Tags,
+  Target,
   Users,
-  UserX,
   type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -138,10 +138,15 @@ export default async function ManagerCompliancePage({
             description="Grouped from the summary sheet"
           />
           <MetricCard
-            icon={UserX}
-            title="Repeat reps"
-            value={formatNumber(data.summary.repeatReps)}
-            description="3+ flags in selected week"
+            icon={Target}
+            title="Top issue"
+            value={data.summary.topIssue?.category || "None"}
+            description={
+              data.summary.topIssue
+                ? `${formatNumber(data.summary.topIssue.totalCount)} flags`
+                : "No flags in selected week"
+            }
+            valueClassName="text-lg leading-snug"
           />
         </section>
 
@@ -413,18 +418,28 @@ function MetricCard({
   value,
   description,
   icon: Icon,
+  valueClassName,
 }: {
   title: string;
   value: string;
   description: string;
   icon: LucideIcon;
+  valueClassName?: string;
 }) {
   return (
     <Card className="dashboard-card border bg-card/95">
       <CardContent className="flex items-start justify-between gap-3 pt-1">
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">{title}</p>
-          <p className="mt-2 truncate text-3xl font-semibold tracking-normal">{value}</p>
+          <p
+            className={cn(
+              "mt-2 text-3xl font-semibold tracking-normal",
+              valueClassName ? "whitespace-normal" : "truncate",
+              valueClassName,
+            )}
+          >
+            {value}
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">{description}</p>
         </div>
         <span className="grid size-9 shrink-0 place-items-center rounded-lg border bg-background text-primary">

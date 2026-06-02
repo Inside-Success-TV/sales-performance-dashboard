@@ -64,8 +64,11 @@ export type ComplianceRepGroup = {
 export type ComplianceDashboardSummary = {
   totalFlags: number;
   repsInvolved: number;
-  repeatReps: number;
   categories: number;
+  topIssue: {
+    category: string;
+    totalCount: number;
+  } | null;
   highestSeverity: string;
   highSeverityRows: number;
   lastSeen: string;
@@ -163,8 +166,8 @@ function getFallbackDashboardData(
     summary: {
       totalFlags: 0,
       repsInvolved: 0,
-      repeatReps: 0,
       categories: 0,
+      topIssue: null,
       highestSeverity: "None",
       highSeverityRows: 0,
       lastSeen: "",
@@ -410,8 +413,8 @@ function buildSummary(
     repCounts.set(row.rep, (repCounts.get(row.rep) || 0) + row.count);
   }
   const repsInvolved = repCounts.size;
-  const repeatReps = [...repCounts.values()].filter((count) => count >= 3).length;
   const categories = categoryRows.length || new Set(repRows.map((row) => row.category)).size;
+  const topIssue = getTopIssue(categoryRows, repRows);
   const highestSeverity = [...repRows, ...categoryRows].reduce(
     (severity, row) => maxSeverity(severity, row.severity),
     "None",
@@ -425,12 +428,40 @@ function buildSummary(
   return {
     totalFlags,
     repsInvolved,
-    repeatReps,
     categories,
+    topIssue,
     highestSeverity,
     highSeverityRows,
     lastSeen: latestRow?.lastSeen || "",
   };
+}
+
+function getTopIssue(
+  categoryRows: ComplianceCategoryRow[],
+  repRows: RepSummaryRow[],
+): ComplianceDashboardSummary["topIssue"] {
+  const topCategoryRow = categoryRows.reduce<ComplianceCategoryRow | null>(
+    (top, row) => (!top || row.totalCount > top.totalCount ? row : top),
+    null,
+  );
+
+  if (topCategoryRow) {
+    return {
+      category: topCategoryRow.category,
+      totalCount: topCategoryRow.totalCount,
+    };
+  }
+
+  const categoryCounts = new Map<string, number>();
+  for (const row of repRows) {
+    categoryCounts.set(row.category, (categoryCounts.get(row.category) || 0) + row.count);
+  }
+
+  return [...categoryCounts.entries()].reduce<ComplianceDashboardSummary["topIssue"]>(
+    (top, [category, totalCount]) =>
+      !top || totalCount > top.totalCount ? { category, totalCount } : top,
+    null,
+  );
 }
 
 function matchesSearch(
