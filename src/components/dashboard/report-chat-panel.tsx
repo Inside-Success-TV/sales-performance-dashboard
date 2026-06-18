@@ -98,7 +98,10 @@ export function ReportChatPanel({
     <Sheet>
       <SheetTrigger
         render={
-          <Button variant="default" className="gap-1.5">
+          <Button
+            variant="outline"
+            className="h-10 gap-1 rounded-full border-red-200 bg-[#FEF2F2] px-4 text-[#B91C1C] shadow-sm hover:border-red-300 hover:bg-[#FEE2E2] hover:text-[#991B1B]"
+          >
             <Sparkles className="size-4" />
             Ask Magic Mike
           </Button>

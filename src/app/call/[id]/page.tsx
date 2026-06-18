@@ -95,32 +95,38 @@ export default async function CallPage({
               </Link>
 
               <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full bg-[#FEF2F2] px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#B91C1C]">
+                  <FileText className="size-3.5" />
+                  Sales feedback report
+                </span>
                 <ReportVersionBadge createdAt={call.created_at} />
               </div>
 
               <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight tracking-normal text-slate-950 md:text-5xl">
                 {call.client_name || call.meeting_title || "Feedback Report"}
               </h1>
-              <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
-                {call.meeting_title && call.meeting_title !== call.client_name ? `${call.meeting_title} - ` : ""}
-                {call.rep_name} sales feedback report.
-              </p>
+              {call.meeting_title && call.meeting_title !== call.client_name ? (
+                <div className="mt-4 flex max-w-3xl flex-wrap gap-2.5">
+                  <span className="inline-flex max-w-full items-center gap-2 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
+                    <MessageSquareText className="size-4 shrink-0 text-[#DC2626]" />
+                    <span className="shrink-0 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
+                      Meeting
+                    </span>
+                    <span className="min-w-0 truncate">{call.meeting_title}</span>
+                  </span>
+                </div>
+              ) : null}
 
-              <div className="mt-6 grid gap-3 rounded-[20px] border border-slate-200 bg-white/80 p-4 text-sm sm:grid-cols-3">
+              <div className="mt-6 grid gap-3 rounded-[20px] border border-slate-200 bg-white/80 p-4 text-sm sm:grid-cols-2">
                 <MetaItem label="Rep" value={call.rep_name} icon={<UserRound className="size-4" />} />
                 <MetaItem
                   label={meetingMeta.label}
                   value={meetingMeta.value}
                   icon={<Clock3 className="size-4" />}
                 />
-                <MetaItem
-                  label="Source"
-                  value={call.google_doc_link ? "Google Doc available" : "Dashboard report"}
-                  icon={<FileText className="size-4" />}
-                />
               </div>
 
-              <div className="mt-5 flex flex-wrap gap-2">
+              <div className="mt-5 flex flex-wrap items-center gap-2">
                 <ExternalButton
                   href={call.google_doc_link}
                   label="Open Google Doc"

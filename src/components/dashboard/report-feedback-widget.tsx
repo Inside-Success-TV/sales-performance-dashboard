@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Loader2, MessageSquareText, ThumbsDown, ThumbsUp } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, Loader2, MessageSquareText, Send, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,6 +32,17 @@ export function ReportFeedbackWidget({
   const [name, setName] = useState(() => repName || "");
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const commentRef = useRef<HTMLTextAreaElement>(null);
+
+  const isSubmitting = status === "submitting";
+  const sent = status === "sent";
+  const showNegativeForm = selectedRating === "negative" && !sent;
+
+  useEffect(() => {
+    if (!showNegativeForm) return;
+    const focusTimer = window.setTimeout(() => commentRef.current?.focus(), 120);
+    return () => window.clearTimeout(focusTimer);
+  }, [showNegativeForm]);
 
   if (!eligible) return null;
 
@@ -74,55 +85,73 @@ export function ReportFeedbackWidget({
     }
   }
 
-  const isSubmitting = status === "submitting";
-  const sent = status === "sent";
-  const showNegativeForm = selectedRating === "negative" && !sent;
-
-  return (
-    <section className="magic-card overflow-hidden p-5 md:p-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#B91C1C]">
-            <span className="grid size-8 place-items-center rounded-full bg-[#FEF2F2] text-[#DC2626]">
-              <MessageSquareText className="size-4" />
-            </span>
-            Report feedback
-          </div>
-          <h2 className="mt-3 text-xl font-semibold tracking-normal">Was this report helpful?</h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Your response helps improve Enhanced Magic Mike reports.
+  if (sent) {
+    return (
+      <section className="magic-card flex items-start gap-3 p-5 md:p-6">
+        <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#DC2626] text-white shadow-[0_10px_24px_-12px_rgba(220,38,38,0.9)]">
+          <Check className="size-5 stroke-[3]" />
+        </span>
+        <div>
+          <h2 className="text-[17px] font-extrabold leading-tight tracking-normal text-slate-950">
+            {selectedRating === "positive" ? "Glad it helped" : "Thanks for the feedback"}
+          </h2>
+          <p className="mt-1 text-sm font-medium leading-6 text-slate-500">
+            {selectedRating === "positive"
+              ? "Thanks - your rating was saved."
+              : "It helps Magic Mike get sharper on every call."}
           </p>
         </div>
+      </section>
+    );
+  }
 
-        <div className="flex shrink-0 gap-2">
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 sm:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#FEF2F2] text-[#DC2626]">
+            <MessageSquareText className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-[17px] font-extrabold leading-tight tracking-normal text-slate-950">
+              Was this report helpful?
+            </h2>
+            <p className="mt-1 text-sm font-medium leading-6 text-slate-500">
+              Your rating helps improve the coaching.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2.5">
           <Button
             type="button"
-            variant={selectedRating === "positive" ? "default" : "outline"}
+            variant="outline"
             disabled={isSubmitting || sent}
             className={cn(
-              "h-10 rounded-full px-4",
+              "h-11 rounded-xl px-4 text-sm font-bold transition-all active:scale-[0.98]",
               selectedRating === "positive"
-                ? "bg-[#DC2626] text-white hover:bg-[#B91C1C]"
-                : "border-slate-200 bg-white hover:bg-[#FEF2F2] hover:text-[#B91C1C]",
+                ? "border-[#DC2626] bg-[#DC2626] text-white shadow-[0_8px_20px_-10px_rgba(220,38,38,0.95)] hover:bg-[#B91C1C] hover:text-white"
+                : "border-slate-200 bg-white text-slate-600 hover:border-red-200 hover:bg-[#FEF2F2] hover:text-[#B91C1C]",
             )}
             onClick={() => void submitFeedback("positive")}
+            aria-label="Mark report helpful"
           >
             {isSubmitting && selectedRating === "positive" ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <ThumbsUp className="size-4" />
             )}
-            Yes
+            Helpful
           </Button>
           <Button
             type="button"
-            variant={selectedRating === "negative" ? "default" : "outline"}
+            variant="outline"
             disabled={isSubmitting || sent}
             className={cn(
-              "h-10 rounded-full px-4",
+              "h-11 rounded-xl px-4 text-sm font-bold transition-all active:scale-[0.98]",
               selectedRating === "negative"
-                ? "bg-slate-900 text-white hover:bg-slate-800"
-                : "border-slate-200 bg-white hover:bg-slate-50",
+                ? "border-[#DC2626] bg-[#DC2626] text-white shadow-[0_8px_20px_-10px_rgba(220,38,38,0.95)] hover:bg-[#B91C1C] hover:text-white"
+                : "border-slate-200 bg-white text-slate-600 hover:border-red-200 hover:bg-[#FEF2F2] hover:text-[#B91C1C]",
             )}
             onClick={() => {
               setSelectedRating("negative");
@@ -130,30 +159,23 @@ export function ReportFeedbackWidget({
               setError(null);
               if (!name.trim()) setName(repName || "");
             }}
+            aria-label="Report needs changes"
           >
             <ThumbsDown className="size-4" />
-            No
+            Needs changes
           </Button>
         </div>
       </div>
 
-      {sent ? (
-        <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
-          {selectedRating === "positive"
-            ? "Thanks - your rating was saved."
-            : "Thanks - your feedback was submitted."}
-        </div>
-      ) : null}
-
       {showNegativeForm ? (
         <form
-          className="mt-5 grid gap-4 rounded-[20px] border border-slate-200 bg-slate-50/80 p-4"
+          className="mt-5 grid gap-4 border-t border-slate-200 pt-5"
           onSubmit={(event) => {
             event.preventDefault();
             void submitFeedback("negative");
           }}
         >
-          <label className="grid gap-1.5 text-sm font-semibold">
+          <label className="grid gap-1.5 text-sm font-bold text-slate-800">
             Name
             <Input
               required
@@ -164,14 +186,15 @@ export function ReportFeedbackWidget({
               className="magic-input"
             />
           </label>
-          <label className="grid gap-1.5 text-sm font-semibold">
+          <label className="grid gap-1.5 text-sm font-bold text-slate-800">
             What was off in this report?
             <Textarea
+              ref={commentRef}
               required
               value={comment}
               onChange={(event) => setComment(event.target.value)}
-              placeholder="What was off in this report?"
-              className="magic-input min-h-32 resize-y"
+              placeholder="Tell us what was inaccurate or missing - the more specific, the better."
+              className="magic-input min-h-32 resize-y bg-white text-[15px] font-medium leading-7"
             />
           </label>
           {clientName ? (
@@ -182,10 +205,11 @@ export function ReportFeedbackWidget({
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="h-10 rounded-full bg-slate-900 px-5 text-white hover:bg-slate-800"
+              className="h-10 rounded-xl bg-[#DC2626] px-5 text-white shadow-[0_8px_20px_-10px_rgba(220,38,38,0.95)] hover:bg-[#B91C1C]"
             >
               {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
-              Submit feedback
+              {!isSubmitting ? <Send className="size-4" /> : null}
+              Send feedback
             </Button>
           </div>
         </form>
