@@ -1,7 +1,15 @@
-import { CalendarDays, Clock3, ExternalLink, FileText, MessageSquareText, UserRound } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarDays,
+  Clock3,
+  ExternalLink,
+  FileText,
+  MessageSquareText,
+  UserRound,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReportVersionBadge } from "@/components/dashboard/report-version-badge";
 import { TrackedExternalLink, TrackedLink } from "@/components/dashboard/usage-tracker";
 import { formatMiamiDateTime, formatMiamiMeetingDateTime, truncate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -20,21 +28,29 @@ export function CallCard({ call, compact = false, showRep = true }: CallCardProp
 
   if (compact) {
     return (
-      <Card className="dashboard-card rounded-lg border-border/80 bg-card/95 transition-all hover:-translate-y-px hover:border-primary/40">
-        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <article className="magic-card transition-all hover:-translate-y-px hover:border-red-200 hover:shadow-xl">
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 space-y-2">
-            <CardTitle className="text-base">
+            <div className="flex flex-wrap items-center gap-2">
+              <ReportVersionBadge createdAt={call.created_at} />
+              {call.call_status ? (
+                <Badge variant="outline" className="h-6 rounded-full bg-slate-50 text-xs text-slate-500">
+                  {call.call_status}
+                </Badge>
+              ) : null}
+            </div>
+            <h3 className="text-base font-semibold leading-6 text-slate-950">
               <TrackedLink
                 href={`/call/${call.id}`}
                 eventName="report_card_clicked"
                 eventData={trackingData}
-                className="hover:underline"
+                className="hover:text-[#B91C1C]"
               >
                 {title}
               </TrackedLink>
-            </CardTitle>
-            {meetingLine ? <p className="text-sm text-muted-foreground">{meetingLine}</p> : null}
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            </h3>
+            {meetingLine ? <p className="text-sm text-slate-500">{meetingLine}</p> : null}
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
               {call.call_date ? (
                 <span className="inline-flex items-center gap-1">
                   <CalendarDays className="size-3.5" />
@@ -53,19 +69,24 @@ export function CallCard({ call, compact = false, showRep = true }: CallCardProp
             href={`/call/${call.id}`}
             eventName="report_card_clicked"
             eventData={trackingData}
-            className={cn(buttonVariants({ size: "sm", variant: "outline" }), "sm:shrink-0")}
+            className={cn(
+              buttonVariants({ size: "sm", variant: "outline" }),
+              "h-9 rounded-full border-slate-200 bg-white px-4 text-slate-700 hover:bg-[#FEF2F2] hover:text-[#B91C1C] sm:shrink-0",
+            )}
           >
             Open report
+            <ArrowRight className="size-3.5" />
           </TrackedLink>
-        </CardContent>
-      </Card>
+        </div>
+      </article>
     );
   }
 
   return (
-    <Card className="dashboard-card rounded-lg border-border/80 bg-card/95 transition-all hover:-translate-y-px hover:border-primary/40">
-      <CardHeader className="gap-3 border-b bg-muted/15">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+    <article className="magic-card overflow-hidden transition-all hover:-translate-y-px hover:border-red-200 hover:shadow-xl">
+      <div className="space-y-3 border-b border-slate-100 bg-slate-50/60 p-5">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <ReportVersionBadge createdAt={call.created_at} />
           {call.call_date ? (
             <span className="inline-flex items-center gap-1">
               <CalendarDays className="size-3.5" />
@@ -83,23 +104,27 @@ export function CallCard({ call, compact = false, showRep = true }: CallCardProp
               {call.rep_name}
             </span>
           ) : null}
-          {call.call_status ? <Badge variant="secondary">{call.call_status}</Badge> : null}
+          {call.call_status ? (
+            <Badge variant="outline" className="h-6 rounded-full bg-white text-xs text-slate-500">
+              {call.call_status}
+            </Badge>
+          ) : null}
         </div>
-        <CardTitle className={compact ? "text-base" : "text-lg"}>
+        <h3 className="text-lg font-semibold text-slate-950">
           <TrackedLink
             href={`/call/${call.id}`}
             eventName="report_card_clicked"
             eventData={trackingData}
-            className="hover:underline"
+            className="hover:text-[#B91C1C]"
           >
             {title}
           </TrackedLink>
-        </CardTitle>
-        {meetingLine ? <p className="text-sm text-muted-foreground">{meetingLine}</p> : null}
-      </CardHeader>
-      <CardContent className="space-y-4">
+        </h3>
+        {meetingLine ? <p className="text-sm text-slate-500">{meetingLine}</p> : null}
+      </div>
+      <div className="space-y-4 p-5">
         {call.one_line_verdict ? (
-          <p className="text-sm leading-6 text-muted-foreground">
+          <p className="text-sm leading-6 text-slate-600">
             {truncate(call.one_line_verdict, 220)}
           </p>
         ) : null}
@@ -114,9 +139,13 @@ export function CallCard({ call, compact = false, showRep = true }: CallCardProp
             href={`/call/${call.id}`}
             eventName="report_card_clicked"
             eventData={trackingData}
-            className={buttonVariants({ size: "sm", variant: "outline" })}
+            className={cn(
+              buttonVariants({ size: "sm", variant: "outline" }),
+              "h-9 rounded-full border-slate-200 bg-white px-4 hover:bg-[#FEF2F2] hover:text-[#B91C1C]",
+            )}
           >
             Open report
+            <ArrowRight className="size-3.5" />
           </TrackedLink>
           {call.google_doc_link ? (
             <TrackedExternalLink
@@ -125,15 +154,15 @@ export function CallCard({ call, compact = false, showRep = true }: CallCardProp
               eventData={trackingData}
               target="_blank"
               rel="noreferrer"
-              className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "gap-1")}
+              className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "h-9 rounded-full px-3 text-slate-500 hover:text-[#B91C1C]")}
             >
               <ExternalLink className="size-4" />
               Drive
             </TrackedExternalLink>
           ) : null}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </article>
   );
 }
 
@@ -169,12 +198,12 @@ function SummaryBlock({
   value: string | null;
 }) {
   return (
-    <div className="rounded-md border bg-background/80 p-3 shadow-xs">
-      <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+      <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
         {icon}
         {label}
       </div>
-      <p className="leading-6">{truncate(value, 150) || "Not provided"}</p>
+      <p className="leading-6 text-slate-700">{truncate(value, 150) || "Not provided"}</p>
     </div>
   );
 }

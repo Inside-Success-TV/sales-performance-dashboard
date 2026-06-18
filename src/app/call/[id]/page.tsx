@@ -12,6 +12,7 @@ import {
   MessageSquareText,
   PencilLine,
   Target,
+  UserRound,
   Video,
   Wrench,
 } from "lucide-react";
@@ -19,8 +20,11 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { BulletList, JsonSection } from "@/components/dashboard/json-section";
 import { TrackRecentlyViewed } from "@/components/dashboard/recently-viewed";
+import { ReportFeedbackWidget } from "@/components/dashboard/report-feedback-widget";
 import { ReportChatPanel } from "@/components/dashboard/report-chat-panel";
+import { ReportVersionBadge } from "@/components/dashboard/report-version-badge";
 import { TrackedExternalLink, TrackUsageEvent } from "@/components/dashboard/usage-tracker";
+import { resolveCloseSection } from "@/lib/close-section";
 import { getPerformanceCall } from "@/lib/db";
 import { formatMiamiDateTime, formatMiamiMeetingDateTime } from "@/lib/format";
 import { isReportChatEnabledForCall } from "@/lib/report-chat";
@@ -44,13 +48,17 @@ export default async function CallPage({
   if (!call) notFound();
 
   const reportChatEnabled = isReportChatEnabledForCall(call);
+  const closeSection = resolveCloseSection({
+    whyNoClose: call.why_no_close,
+    closeWorks: call.what_made_this_close_work,
+  });
   const closeTitle =
-    call.close_section_type === "what_made_this_close_work"
+    closeSection.type === "what_made_this_close_work"
       ? "What Made This Close Work"
       : "Why No Close";
 
   return (
-    <main className="dashboard-page min-h-screen bg-background">
+    <main className="magic-page">
       <TrackRecentlyViewed call={call} />
       {!isManagerUsageView ? (
         <TrackUsageEvent
@@ -67,75 +75,99 @@ export default async function CallPage({
           }}
         />
       ) : null}
-      <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="magic-container max-w-5xl">
         <article className="space-y-4">
-          <header className="dashboard-card dashboard-hero rounded-2xl border bg-card/95 p-5 md:p-6">
-            <Link href="/" className={cn(buttonVariants({ variant: "ghost" }), "mb-4 px-0")}>
-              <ArrowLeft className="size-4" />
-              Home
-            </Link>
+          <header className="magic-card magic-hero p-5 md:p-7">
+            <div className="relative">
+              <Link
+                href="/"
+                className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "mb-4 rounded-full px-0 text-slate-500 hover:text-[#B91C1C]")}
+              >
+                <ArrowLeft className="size-4" />
+                Home
+              </Link>
 
-            <div className="flex flex-wrap items-center gap-2">
-              {call.call_status ? <Badge variant="secondary">{call.call_status}</Badge> : null}
+              <div className="flex flex-wrap items-center gap-2">
+                <ReportVersionBadge createdAt={call.created_at} />
+                {call.call_status ? (
+                  <Badge variant="outline" className="h-6 rounded-full bg-white/80 text-slate-600">
+                    {call.call_status}
+                  </Badge>
+                ) : null}
               {call.call_date ? (
-                <Badge variant="outline" className="gap-1">
+                <Badge variant="outline" className="gap-1 rounded-full bg-white/80 text-slate-600">
                   <CalendarDays className="size-3.5" />
                   Meeting {formatMiamiMeetingDateTime(call.call_date)}
                 </Badge>
               ) : (
-                <Badge variant="outline" className="gap-1">
+                <Badge variant="outline" className="gap-1 rounded-full bg-white/80 text-slate-600">
                   <Clock3 className="size-3.5" />
                   Received {formatMiamiDateTime(call.updated_at)}
                 </Badge>
               )}
-            </div>
+              </div>
 
-            <h1 className="mt-3 text-3xl font-semibold tracking-normal">
-              {call.client_name || call.meeting_title || "Feedback Report"}
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {call.meeting_title && call.meeting_title !== call.client_name ? `${call.meeting_title} - ` : ""}
-              {call.rep_name} sales feedback report.
-            </p>
+              <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight tracking-normal text-slate-950 md:text-5xl">
+                {call.client_name || call.meeting_title || "Feedback Report"}
+              </h1>
+              <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
+                {call.meeting_title && call.meeting_title !== call.client_name ? `${call.meeting_title} - ` : ""}
+                {call.rep_name} sales feedback report.
+              </p>
 
-            <div className="mt-5 flex flex-wrap gap-2">
-              <ExternalButton
-                href={call.google_doc_link}
-                label="Open Google Doc"
-                icon={<FileText className="size-4" />}
-                eventName="google_doc_clicked"
-                reportId={call.id}
-                repSlug={call.rep_slug}
-                repName={call.rep_name}
-                trackingDisabled={isManagerUsageView}
-              />
-              <ExternalButton
-                href={call.meeting_link}
-                label="Zoom"
-                icon={<Video className="size-4" />}
-                eventName="zoom_clicked"
-                reportId={call.id}
-                repSlug={call.rep_slug}
-                repName={call.rep_name}
-                trackingDisabled={isManagerUsageView}
-              />
-              <ExternalButton
-                href={call.transcript_link}
-                label="Transcript"
-                icon={<MessageSquareText className="size-4" />}
-                eventName="transcript_clicked"
-                reportId={call.id}
-                repSlug={call.rep_slug}
-                repName={call.rep_name}
-                trackingDisabled={isManagerUsageView}
-              />
-              {reportChatEnabled ? (
-                <ReportChatPanel
-                  reportId={call.id}
-                  repName={call.rep_name}
-                  clientName={call.client_name}
+              <div className="mt-6 grid gap-3 rounded-[20px] border border-slate-200 bg-white/80 p-4 text-sm sm:grid-cols-3">
+                <MetaItem label="Rep" value={call.rep_name} icon={<UserRound className="size-4" />} />
+                <MetaItem
+                  label="Report created"
+                  value={formatMiamiDateTime(call.created_at)}
+                  icon={<Clock3 className="size-4" />}
                 />
-              ) : null}
+                <MetaItem
+                  label="Source"
+                  value={call.google_doc_link ? "Google Doc available" : "Dashboard report"}
+                  icon={<FileText className="size-4" />}
+                />
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <ExternalButton
+                  href={call.google_doc_link}
+                  label="Open Google Doc"
+                  icon={<FileText className="size-4" />}
+                  eventName="google_doc_clicked"
+                  reportId={call.id}
+                  repSlug={call.rep_slug}
+                  repName={call.rep_name}
+                  trackingDisabled={isManagerUsageView}
+                />
+                <ExternalButton
+                  href={call.meeting_link}
+                  label="Zoom"
+                  icon={<Video className="size-4" />}
+                  eventName="zoom_clicked"
+                  reportId={call.id}
+                  repSlug={call.rep_slug}
+                  repName={call.rep_name}
+                  trackingDisabled={isManagerUsageView}
+                />
+                <ExternalButton
+                  href={call.transcript_link}
+                  label="Transcript"
+                  icon={<MessageSquareText className="size-4" />}
+                  eventName="transcript_clicked"
+                  reportId={call.id}
+                  repSlug={call.rep_slug}
+                  repName={call.rep_name}
+                  trackingDisabled={isManagerUsageView}
+                />
+                {reportChatEnabled ? (
+                  <ReportChatPanel
+                    reportId={call.id}
+                    repName={call.rep_name}
+                    clientName={call.client_name}
+                  />
+                ) : null}
+              </div>
             </div>
           </header>
 
@@ -168,15 +200,43 @@ export default async function CallPage({
           </ReportSection>
 
           <ReportSection title={closeTitle} icon={<Target className="size-4" />}>
-            <JsonSection value={call.close_section} />
+            <JsonSection value={closeSection.value} />
           </ReportSection>
 
           <ReportSection title="Objections Surfaced" icon={<MessageSquareText className="size-4" />}>
             <BulletList items={call.objections_surfaced} />
           </ReportSection>
+
+          <ReportFeedbackWidget
+            reportType="official"
+            reportId={call.id}
+            repName={call.rep_name}
+            clientName={call.client_name}
+            reportCreatedAt={call.created_at}
+          />
         </article>
       </div>
     </main>
+  );
+}
+
+function MetaItem({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="magic-icon-bubble size-8 shrink-0">{icon}</span>
+      <div className="min-w-0">
+        <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">{label}</div>
+        <div className="mt-0.5 truncate font-semibold text-slate-700">{value}</div>
+      </div>
+    </div>
   );
 }
 
@@ -194,17 +254,17 @@ function ReportSection({
   return (
     <section
       className={cn(
-        "rounded-xl border bg-card/95 p-5 shadow-xs",
-        featured && "border-primary/20 bg-primary/5",
+        "magic-card p-5 md:p-6",
+        featured && "border-red-100 bg-[#FEF2F2]/80",
       )}
     >
-      <h2 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-        <span className="grid size-7 place-items-center rounded-md border bg-background text-foreground">
+      <h2 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
+        <span className="grid size-8 place-items-center rounded-full border border-red-100 bg-white text-[#DC2626]">
           {icon}
         </span>
         {title}
       </h2>
-      <div className="text-sm leading-7 text-foreground">{children}</div>
+      <div className="text-sm leading-7 text-slate-700">{children}</div>
     </section>
   );
 }
@@ -234,7 +294,10 @@ function ExternalButton({
 }) {
   if (!href) return null;
 
-  const className = cn(buttonVariants({ variant: "outline" }), "gap-1");
+  const className = cn(
+    buttonVariants({ variant: "outline" }),
+    "h-10 gap-1 rounded-full border-slate-200 bg-white px-4 text-slate-700 hover:bg-[#FEF2F2] hover:text-[#B91C1C]",
+  );
   const content = (
     <>
       {icon}

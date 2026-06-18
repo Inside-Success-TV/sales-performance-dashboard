@@ -75,7 +75,7 @@ export function ManualSubmitForm() {
 
   return (
     <form onSubmit={submitReport} className="space-y-5">
-      <div className="rounded-xl border bg-background/80 p-2">
+      <div className="magic-soft-panel p-2">
         <div className="grid gap-2 sm:grid-cols-2">
           <ModeButton
             active={inputType === "zoom_link"}
@@ -98,8 +98,9 @@ export function ManualSubmitForm() {
             value={zoomLink}
             onChange={(event) => setZoomLink(event.target.value)}
             placeholder="https://insidesuccess.zoom.us/rec/share/..."
+            className="magic-input h-11"
           />
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+          <p className="mt-2 text-xs leading-5 text-slate-500">
             Paste one Zoom recording link. If Zoom does not allow transcript access, the report will ask for a pasted transcript instead.
           </p>
         </Field>
@@ -109,16 +110,16 @@ export function ManualSubmitForm() {
             value={transcriptText}
             onChange={(event) => setTranscriptText(event.target.value)}
             placeholder="Paste the Zoom transcript here..."
-            className="min-h-72"
+            className="magic-input min-h-72"
           />
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <Badge variant="outline">{transcriptText.trim().length.toLocaleString()} characters</Badge>
             <span>Raw transcript text is sent to the workflow but not stored in the dashboard database.</span>
           </div>
         </Field>
       )}
 
-      <div className="rounded-xl border bg-background/80 p-4">
+      <div className="magic-soft-panel p-4">
         <Field
           label="Rep name"
           required
@@ -129,14 +130,15 @@ export function ManualSubmitForm() {
             onChange={(event) => setRepName(event.target.value)}
             placeholder="Sales rep"
             autoComplete="name"
+            className="magic-input h-11"
           />
         </Field>
       </div>
 
-      <details className="group rounded-xl border bg-background/60 p-4">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <details className="group magic-soft-panel p-4">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl transition-colors hover:text-[#B91C1C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200">
           <span className="text-sm font-semibold">Optional details</span>
-          <span className="inline-flex items-center gap-2 text-xs font-normal text-muted-foreground">
+          <span className="inline-flex items-center gap-2 text-xs font-normal text-slate-500">
             <span className="group-open:hidden">Add rep email or client name</span>
             <span className="hidden group-open:inline">Hide optional details</span>
             <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
@@ -150,6 +152,7 @@ export function ManualSubmitForm() {
               onChange={(event) => setRepEmail(event.target.value)}
               placeholder="rep@company.com"
               autoComplete="email"
+              className="magic-input h-11"
             />
           </Field>
           <Field label="Client name (optional)">
@@ -157,6 +160,7 @@ export function ManualSubmitForm() {
               value={clientName}
               onChange={(event) => setClientName(event.target.value)}
               placeholder="Client or prospect"
+              className="magic-input h-11"
             />
           </Field>
         </div>
@@ -168,24 +172,28 @@ export function ManualSubmitForm() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background/80 p-4">
-        <p className="text-sm text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-slate-200 bg-white p-4">
+        <p className="text-sm text-slate-500">
           Reports usually take about 1-2 minutes and update automatically.
         </p>
-        <Button type="submit" disabled={!canSubmit || isSubmitting} className="gap-1.5">
+        <Button
+          type="submit"
+          disabled={!canSubmit || isSubmitting}
+          className="h-10 rounded-full bg-[#DC2626] px-5 text-white hover:bg-[#B91C1C]"
+        >
           {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
           Generate feedback
         </Button>
       </div>
 
-      <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+      <div className="rounded-[18px] border border-red-100 bg-[#FEF2F2] p-3">
         <div className="flex gap-3">
-          <span className="grid size-7 shrink-0 place-items-center rounded-md border bg-background text-primary">
+          <span className="grid size-7 shrink-0 place-items-center rounded-full border border-red-100 bg-white text-[#DC2626]">
             <ShieldAlert className="size-3.5" />
           </span>
           <div className="space-y-0.5">
-            <div className="text-sm font-semibold">Call 2 or later only</div>
-            <p className="text-xs leading-5 text-muted-foreground">
+            <div className="text-sm font-semibold text-slate-950">Call 2 or later only</div>
+            <p className="text-xs leading-5 text-slate-600">
               Call 1, internal calls, training calls, no-shows, or very short transcripts will not generate a report.
             </p>
           </div>
@@ -208,13 +216,13 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold uppercase text-muted-foreground">
+      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
         {label}
         {required ? " *" : ""}
       </span>
       {children}
       {description ? (
-        <span className="mt-2 block text-xs leading-5 text-muted-foreground">{description}</span>
+        <span className="mt-2 block text-xs leading-5 text-slate-500">{description}</span>
       ) : null}
     </label>
   );
@@ -236,10 +244,10 @@ function ModeButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex h-10 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors",
+        "flex h-10 items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-semibold transition-colors",
         active
-          ? "border-primary bg-primary text-primary-foreground"
-          : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
+          ? "border-[#DC2626] bg-[#DC2626] text-white shadow-sm"
+          : "border-transparent bg-transparent text-slate-500 hover:bg-white hover:text-slate-950",
       )}
     >
       {icon}

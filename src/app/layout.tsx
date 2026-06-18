@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import { BarChart3, FileText, Home, Send } from "lucide-react";
 import "./globals.css";
 
@@ -11,6 +11,11 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+const plusJakarta = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta",
   subsets: ["latin"],
 });
 
@@ -27,16 +32,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${plusJakarta.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-background">
-        <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
-          <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+        <header className="magic-app-header sticky top-0 z-40 border-b backdrop-blur supports-[backdrop-filter]:bg-white/85">
+          <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
             <Link href="/" className="flex min-w-0 items-center gap-2 font-semibold">
-              <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">
+              <span className="magic-brand-mark grid size-9 place-items-center rounded-2xl text-white">
                 <BarChart3 className="size-4" />
               </span>
-              <span className="truncate">Magic Mike Bot</span>
+              <span className="truncate text-[0.95rem] tracking-normal">Magic Mike Bot</span>
             </Link>
             <nav
               aria-label="Primary navigation"
@@ -44,21 +49,21 @@ export default function RootLayout({
             >
               <Link
                 href="/"
-                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border bg-card px-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
+                className="magic-nav-link inline-flex h-9 shrink-0 items-center gap-1.5 px-3 text-sm font-semibold transition-colors"
               >
                 <Home className="size-4" />
                 Home
               </Link>
               <Link
                 href="/manual-reports"
-                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border bg-card px-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
+                className="magic-nav-link inline-flex h-9 shrink-0 items-center gap-1.5 px-3 text-sm font-semibold transition-colors"
               >
                 <FileText className="size-4" />
                 Self-submitted reports
               </Link>
               <Link
                 href="/submit"
-                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border bg-card px-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
+                className="magic-nav-link magic-nav-link-primary inline-flex h-9 shrink-0 items-center gap-1.5 px-3 text-sm font-semibold transition-colors"
               >
                 <Send className="size-4" />
                 Get feedback

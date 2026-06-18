@@ -1,4 +1,4 @@
-import { ArrowDownWideNarrow, UserRound } from "lucide-react";
+import { ArrowDownWideNarrow, CheckCircle2, Sparkles, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CallCard } from "@/components/dashboard/call-card";
 import { RepPicker } from "@/components/dashboard/rep-picker";
@@ -24,7 +24,7 @@ export default async function Home({
   const hasSelectedRep = Boolean(selectedRepSlug);
 
   return (
-    <main className="dashboard-page min-h-screen bg-background">
+    <main className="magic-page">
       <TrackUsageEvent
         eventName="dashboard_home_viewed"
         eventData={{
@@ -33,54 +33,72 @@ export default async function Home({
           target_rep_name: selectedRepName || null,
         }}
       />
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8">
-        <header className="dashboard-card dashboard-hero rounded-2xl border bg-card/95 p-5 md:p-6">
-          <div className="max-w-2xl">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">Inside Success TV</Badge>
-              {!configured ? <Badge variant="destructive">Database not connected</Badge> : null}
+      <div className="magic-container flex flex-col gap-6">
+        <header className="magic-card magic-hero p-5 md:p-7">
+          <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-end">
+            <div className="max-w-3xl pt-2">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className="magic-kicker">
+                  <Sparkles className="size-3.5" />
+                  Inside Success TV
+                </span>
+                {!configured ? <Badge variant="destructive">Database not connected</Badge> : null}
+              </div>
+              <h1 className="max-w-3xl text-4xl font-semibold leading-tight tracking-normal text-slate-950 md:text-5xl">
+                Stop losing deals you could have closed.
+              </h1>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
+                Magic Mike turns every sales call into clear coaching: what worked, what was missed, and what to do next.
+              </p>
+              <div className="mt-5 grid gap-2 text-sm font-medium text-slate-700 sm:grid-cols-3">
+                <span className="inline-flex items-center gap-2">
+                  <CheckCircle2 className="size-4 text-[#DC2626]" />
+                  Rep-first view
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <CheckCircle2 className="size-4 text-[#DC2626]" />
+                  Newest reports first
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <CheckCircle2 className="size-4 text-[#DC2626]" />
+                  Enhanced report labels
+                </span>
+              </div>
             </div>
-            <h1 className="text-3xl font-semibold tracking-normal md:text-4xl">
-              Magic Mike Bot (Formerly Lil Rudy)
-            </h1>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Newest feedback reports by rep.
-            </p>
-          </div>
 
-          <div className="mt-6 rounded-xl border bg-background/80 p-3">
-            <RepPicker reps={reps} selectedRepSlug={selectedRepSlug} />
-          </div>
-
-          {hasSelectedRep ? (
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-              <Badge variant="outline" className="gap-1 rounded-md bg-background/70">
-                <ArrowDownWideNarrow className="size-3.5" />
-                Newest meetings first
-              </Badge>
+            <div className="magic-soft-panel p-4">
+              <RepPicker reps={reps} selectedRepSlug={selectedRepSlug} />
+              {hasSelectedRep ? (
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+                  <Badge variant="outline" className="gap-1 rounded-full bg-white/80 text-slate-600">
+                    <ArrowDownWideNarrow className="size-3.5" />
+                    Newest meetings first
+                  </Badge>
+                </div>
+              ) : null}
             </div>
-          ) : null}
+          </div>
         </header>
 
         {error ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
             {error}
           </div>
         ) : null}
 
         {!configured ? (
-          <div className="rounded-lg border bg-card p-4 text-sm leading-6 text-muted-foreground">
+          <div className="magic-card p-4 text-sm leading-6 text-muted-foreground">
             Connect `DATABASE_URL` and `INGEST_SECRET` in Vercel, then run `scripts/schema.sql` or let the ingest route create the table on first post.
           </div>
         ) : null}
 
         <section className="space-y-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-wrap items-end justify-between gap-3 px-1">
             <div>
-              <h2 className="text-xl font-semibold">
+              <h2 className="text-2xl font-semibold tracking-normal text-slate-950">
                 {hasSelectedRep ? `${selectedRepName || "Selected rep"}'s calls` : "Choose a rep"}
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-1 text-sm text-slate-500">
                 {hasSelectedRep
                   ? `${calls.length} ${calls.length === 1 ? "report" : "reports"} found.`
                   : "The call list appears after a rep is selected."}
@@ -115,10 +133,10 @@ export default async function Home({
 
 function SelectionState() {
   return (
-    <div className="rounded-xl border bg-card/80 p-8 text-center">
-      <UserRound className="mx-auto mb-3 size-8 text-muted-foreground" />
-      <h3 className="text-base font-semibold">No rep selected</h3>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+    <div className="magic-card p-10 text-center">
+      <UserRound className="mx-auto mb-3 size-8 text-slate-400" />
+      <h3 className="text-base font-semibold text-slate-950">No rep selected</h3>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
         Feedback reports are grouped by rep.
       </p>
     </div>
@@ -127,9 +145,9 @@ function SelectionState() {
 
 function EmptyState({ repName, hasFilters }: { repName: string; hasFilters?: boolean }) {
   return (
-    <div className="rounded-xl border bg-card/80 p-8 text-center">
-      <h3 className="text-base font-semibold">No reports found</h3>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+    <div className="magic-card p-10 text-center">
+      <h3 className="text-base font-semibold text-slate-950">No reports found</h3>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
         {hasFilters
           ? "No reports match that search."
           : repName

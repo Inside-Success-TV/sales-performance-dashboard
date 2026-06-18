@@ -23,21 +23,21 @@ export default async function RepPage({
   const repName = reps.find((rep) => rep.rep_slug === slug)?.rep_name || calls[0]?.rep_name || "Rep";
 
   return (
-    <main className="dashboard-page min-h-screen bg-background">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8">
-        <div className="dashboard-card dashboard-hero rounded-2xl border bg-card/95 p-5 md:p-6">
-          <Link href="/" className={cn(buttonVariants({ variant: "ghost" }), "mb-4 px-0")}>
+    <main className="magic-page">
+      <div className="magic-container flex flex-col gap-6">
+        <div className="magic-card magic-hero p-5 md:p-7">
+          <Link href="/" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "mb-4 rounded-full px-0 text-slate-500 hover:text-[#B91C1C]")}>
             <ArrowLeft className="size-4" />
             Home
           </Link>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-3xl font-semibold tracking-normal">{repName}</h1>
-              <p className="mt-2 text-sm text-muted-foreground">
+              <h1 className="text-4xl font-semibold tracking-normal text-slate-950 md:text-5xl">{repName}</h1>
+              <p className="mt-2 text-sm text-slate-500">
                 {calls.length} {calls.length === 1 ? "report" : "reports"} found.
               </p>
             </div>
-            <Badge variant="outline" className="gap-1 rounded-md bg-background/70">
+            <Badge variant="outline" className="gap-1 rounded-full bg-white/80 text-slate-600">
               <ArrowDownWideNarrow className="size-3.5" />
               Newest meetings first
             </Badge>
@@ -49,7 +49,7 @@ export default async function RepPage({
           {calls.length ? (
             calls.map((call) => <CallCard key={call.id} call={call} compact showRep={false} />)
           ) : (
-            <div className="rounded-xl border bg-card/80 p-8 text-center text-sm text-muted-foreground">
+            <div className="magic-card p-10 text-center text-sm text-slate-500">
               {filters.q || filters.date ? "No reports match that search." : "No reports found for this rep."}
             </div>
           )}

@@ -7,6 +7,7 @@ import {
   Award,
   BookOpenText,
   CheckCircle2,
+  Clock3,
   ExternalLink,
   FileText,
   Lightbulb,
@@ -16,14 +17,18 @@ import {
   Send,
   Target,
   TriangleAlert,
+  UserRound,
   Video,
   Wrench,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { BulletList, JsonSection } from "@/components/dashboard/json-section";
+import { ReportFeedbackWidget } from "@/components/dashboard/report-feedback-widget";
 import { ReportChatPanel } from "@/components/dashboard/report-chat-panel";
+import { ReportVersionBadge } from "@/components/dashboard/report-version-badge";
 import { TrackedExternalLink } from "@/components/dashboard/usage-tracker";
+import { resolveCloseSection } from "@/lib/close-section";
 import { formatMiamiDateTime } from "@/lib/format";
 import { slugify } from "@/lib/slug";
 import type { ManualFeedbackReport } from "@/lib/types";
@@ -54,8 +59,12 @@ export function ManualReportStatus({
     : "/manual-reports";
 
   const isWaiting = !TERMINAL_STATUSES.has(report.status);
+  const closeSection = resolveCloseSection({
+    whyNoClose: report.why_no_close,
+    closeWorks: report.what_made_this_close_work,
+  });
   const closeTitle =
-    report.close_section_type === "what_made_this_close_work"
+    closeSection.type === "what_made_this_close_work"
       ? "What Made This Close Work"
       : "Why No Close";
 
@@ -95,70 +104,92 @@ export function ManualReportStatus({
   }, [isWaiting, report.public_id]);
 
   return (
-    <main className="dashboard-page min-h-screen bg-background">
-      {isWaiting ? <div className="fixed inset-x-0 top-14 z-50 h-0.5 overflow-hidden bg-primary/10"><div className="loading-progress h-full bg-primary" /></div> : null}
-      <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+    <main className="magic-page">
+      {isWaiting ? <div className="fixed inset-x-0 top-16 z-50 h-0.5 overflow-hidden bg-red-100"><div className="loading-progress h-full bg-[#DC2626]" /></div> : null}
+      <div className="magic-container max-w-5xl">
         <article className="space-y-4">
-          <header className="dashboard-card dashboard-hero rounded-xl border bg-card/95 p-5 md:p-6">
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              <Link href={manualReportsHref} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "px-0")}>
-                <ArrowLeft className="size-4" />
-                Self-submitted reports
-              </Link>
-              <Link href="/submit" className={buttonVariants({ variant: "outline", size: "sm" })}>
-                <Send className="size-4" />
-                Get feedback
-              </Link>
-            </div>
+          <header className="magic-card magic-hero p-5 md:p-7">
+            <div className="relative">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <Link href={manualReportsHref} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "rounded-full px-0 text-slate-500 hover:text-[#B91C1C]")}>
+                  <ArrowLeft className="size-4" />
+                  Self-submitted reports
+                </Link>
+                <Link
+                  href="/submit"
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-9 rounded-full border-slate-200 bg-white px-4")}
+                >
+                  <Send className="size-4" />
+                  Get feedback
+                </Link>
+              </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={report.status} />
-              <Badge variant="outline">Updated {formatMiamiDateTime(report.updated_at)}</Badge>
-            </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <ReportVersionBadge createdAt={report.created_at} />
+                <StatusBadge status={report.status} />
+                <Badge variant="outline" className="rounded-full bg-white/80 text-slate-600">
+                  Updated {formatMiamiDateTime(report.updated_at)}
+                </Badge>
+              </div>
 
-            <h1 className="mt-3 text-3xl font-semibold tracking-normal">
-              {report.client_name || `${report.rep_name}'s feedback`}
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Manual sales feedback for {report.rep_name}.
-            </p>
+              <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight tracking-normal text-slate-950 md:text-5xl">
+                {report.client_name || `${report.rep_name}'s feedback`}
+              </h1>
+              <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
+                Manual sales feedback for {report.rep_name}.
+              </p>
 
-            <div className="mt-5 flex flex-wrap gap-2">
-              <ExternalButton
-                href={reportDocLink}
-                label="Open Google Doc"
-                icon={<FileText className="size-4" />}
-                eventName="google_doc_clicked"
-                report={report}
-              />
-              <ExternalButton
-                href={zoomLink}
-                label="Zoom"
-                icon={<Video className="size-4" />}
-                eventName="zoom_clicked"
-                report={report}
-              />
-              <ExternalButton
-                href={transcriptLink}
-                label="Transcript"
-                icon={<MessageSquareText className="size-4" />}
-                unavailableLabel="Transcript unavailable"
-                eventName="transcript_clicked"
-                report={report}
-              />
-              {reportChatEnabled && report.status === "completed" ? (
-                <ReportChatPanel
-                  reportType="manual"
-                  reportId={report.public_id}
-                  repName={report.rep_name}
-                  clientName={report.client_name}
+              <div className="mt-6 grid gap-3 rounded-[20px] border border-slate-200 bg-white/80 p-4 text-sm sm:grid-cols-3">
+                <MetaItem label="Rep" value={report.rep_name} icon={<UserRound className="size-4" />} />
+                <MetaItem
+                  label="Report created"
+                  value={formatMiamiDateTime(report.created_at)}
+                  icon={<Clock3 className="size-4" />}
                 />
-              ) : null}
+                <MetaItem
+                  label="Source"
+                  value={(report.source_type || report.input_type).replace(/_/g, " ")}
+                  icon={<FileText className="size-4" />}
+                />
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <ExternalButton
+                  href={reportDocLink}
+                  label="Open Google Doc"
+                  icon={<FileText className="size-4" />}
+                  eventName="google_doc_clicked"
+                  report={report}
+                />
+                <ExternalButton
+                  href={zoomLink}
+                  label="Zoom"
+                  icon={<Video className="size-4" />}
+                  eventName="zoom_clicked"
+                  report={report}
+                />
+                <ExternalButton
+                  href={transcriptLink}
+                  label="Transcript"
+                  icon={<MessageSquareText className="size-4" />}
+                  unavailableLabel="Transcript unavailable"
+                  eventName="transcript_clicked"
+                  report={report}
+                />
+                {reportChatEnabled && report.status === "completed" ? (
+                  <ReportChatPanel
+                    reportType="manual"
+                    reportId={report.public_id}
+                    repName={report.rep_name}
+                    clientName={report.client_name}
+                  />
+                ) : null}
+              </div>
             </div>
           </header>
 
           {error ? (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+            <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
               {error}
             </div>
           ) : null}
@@ -199,17 +230,45 @@ export function ManualReportStatus({
               </ReportSection>
 
               <ReportSection title={closeTitle} icon={<Target className="size-4" />}>
-                <JsonSection value={report.close_section} />
+                <JsonSection value={closeSection.value} />
               </ReportSection>
 
               <ReportSection title="Objections Surfaced" icon={<MessageSquareText className="size-4" />}>
                 <BulletList items={report.objections_surfaced} />
               </ReportSection>
+
+              <ReportFeedbackWidget
+                reportType="manual"
+                reportId={report.public_id}
+                repName={report.rep_name}
+                clientName={report.client_name}
+                reportCreatedAt={report.created_at}
+              />
             </>
           ) : null}
         </article>
       </div>
     </main>
+  );
+}
+
+function MetaItem({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="magic-icon-bubble size-8 shrink-0">{icon}</span>
+      <div className="min-w-0">
+        <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">{label}</div>
+        <div className="mt-0.5 truncate font-semibold capitalize text-slate-700">{value}</div>
+      </div>
+    </div>
   );
 }
 
@@ -233,10 +292,10 @@ function StatusBadge({ status }: { status: ManualFeedbackReport["status"] }) {
 
 function PendingPanel() {
   return (
-    <section className="dashboard-card rounded-xl border bg-card/95 p-6 text-center">
+    <section className="magic-card p-8 text-center">
       <Loader2 className="mx-auto mb-3 size-8 animate-spin text-primary" />
-      <h2 className="text-lg font-semibold">Your report is being generated</h2>
-      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+      <h2 className="text-lg font-semibold text-slate-950">Your report is being generated</h2>
+      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
         This usually takes about 1-2 minutes. You can leave this page open and the report will appear automatically.
       </p>
     </section>
@@ -283,14 +342,14 @@ function MessagePanel({
   return (
     <section
       className={cn(
-        "rounded-xl border p-5",
+        "rounded-[20px] border p-5",
         destructive
           ? "border-destructive/30 bg-destructive/10 text-destructive"
-          : "border-primary/20 bg-primary/5",
+          : "border-red-100 bg-[#FEF2F2] text-slate-700",
       )}
     >
       <div className="flex gap-3">
-        <span className="grid size-8 shrink-0 place-items-center rounded-md border bg-background">
+        <span className="grid size-8 shrink-0 place-items-center rounded-full border border-red-100 bg-white text-[#DC2626]">
           <TriangleAlert className="size-4" />
         </span>
         <div>
@@ -316,17 +375,17 @@ function ReportSection({
   return (
     <section
       className={cn(
-        "rounded-xl border bg-card/95 p-5 shadow-xs",
-        featured && "border-primary/20 bg-primary/5",
+        "magic-card p-5 md:p-6",
+        featured && "border-red-100 bg-[#FEF2F2]/80",
       )}
     >
-      <h2 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-        <span className="grid size-7 place-items-center rounded-md border bg-background text-foreground">
+      <h2 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
+        <span className="grid size-8 place-items-center rounded-full border border-red-100 bg-white text-[#DC2626]">
           {icon}
         </span>
         {title}
       </h2>
-      <div className="text-sm leading-7 text-foreground">{children}</div>
+      <div className="text-sm leading-7 text-slate-700">{children}</div>
     </section>
   );
 }
@@ -356,7 +415,7 @@ function ExternalButton({
     return (
       <span
         aria-disabled="true"
-        className={cn(buttonVariants({ variant: "outline" }), "gap-1 opacity-55")}
+        className={cn(buttonVariants({ variant: "outline" }), "h-10 gap-1 rounded-full border-slate-200 bg-white px-4 opacity-55")}
       >
         {icon}
         {unavailableLabel}
@@ -380,7 +439,10 @@ function ExternalButton({
       }}
       target="_blank"
       rel="noreferrer"
-      className={cn(buttonVariants({ variant: "outline" }), "gap-1")}
+      className={cn(
+        buttonVariants({ variant: "outline" }),
+        "h-10 gap-1 rounded-full border-slate-200 bg-white px-4 text-slate-700 hover:bg-[#FEF2F2] hover:text-[#B91C1C]",
+      )}
     >
       {icon}
       {label}
