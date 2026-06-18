@@ -113,6 +113,7 @@ export type RepNoShowAnalytics = {
 type NormalizedCall = RepNoShowCall & {
   noShow: boolean;
   tracked: boolean;
+  ingestedAt: string | null;
 };
 
 export function normalizeRepNoShowWindow(value: string | string[] | undefined): RepNoShowWindow {
@@ -160,7 +161,9 @@ export async function getRepNoShowAnalytics(
       token,
       Math.max(HISTORY_DAYS, differenceInDays(trackingStartedAt, generatedAt) + 2),
     );
-    const calls = records.map(normalizeAirtableRecord).filter(isEligibleCall).filter(isTrackedCall);
+    const calls = dedupeTrackedCalls(
+      records.map(normalizeAirtableRecord).filter(isEligibleCall).filter(isTrackedCall),
+    );
     const periodEnd = generatedAt;
     const requestedPeriodStart = addDays(periodEnd, -periodDays);
     const periodStart = maxDate(requestedPeriodStart, trackingStartedAt);
@@ -302,6 +305,7 @@ function normalizeAirtableRecord(record: AirtableRecord): NormalizedCall {
     source: fieldString(fields, "Source"),
     noShow: isRepNoShow(attendanceStatus, aiDecisionReason),
     tracked: Boolean(attendanceStatus),
+    ingestedAt: fieldDate(fields, "Ingested At") || record.createdTime || null,
   };
 }
 
@@ -368,6 +372,95 @@ function isRepNoShow(status: string, reason: string) {
     "waiting for salesperson",
     "no salesperson joined",
   ].some((needle) => normalizedReason.includes(needle));
+}
+
+function dedupeTrackedCalls(calls: NormalizedCall[]) {
+  const deduped = new Map<string, NormalizedCall>();
+  const passthrough: NormalizedCall[] = [];
+
+  for (const call of calls) {
+    const key = getCallDedupeKey(call);
+    if (!key) {
+      passthrough.push(call);
+      continue;
+    }
+
+    const existing = deduped.get(key);
+    deduped.set(key, existing ? choosePreferredCall(existing, call) : call);
+  }
+
+  return [...deduped.values(), ...passthrough];
+}
+
+function getCallDedupeKey(call: NormalizedCall) {
+  const repKey = normalizeIdentity(call.repSlug || call.repName);
+  const clientKey = normalizeIdentity(call.clientName);
+  const meetingIdKey = normalizeIdentity(call.meetingId);
+  const meetingTitleKey = normalizeIdentity(call.meetingTitle);
+  const meetingKey = hasStrongIdentity(meetingIdKey)
+    ? meetingIdKey
+    : hasStrongIdentity(meetingTitleKey)
+      ? `title:${meetingTitleKey}`
+      : "";
+  const timeKey = getMinuteTimeKey(call.callDate);
+
+  if (
+    !hasStrongIdentity(repKey) ||
+    !hasStrongIdentity(clientKey) ||
+    !hasStrongIdentity(meetingKey) ||
+    !timeKey
+  ) {
+    return "";
+  }
+
+  return [repKey, clientKey, meetingKey, timeKey].join("|");
+}
+
+function choosePreferredCall(current: NormalizedCall, candidate: NormalizedCall) {
+  const scoreDelta = getCallQualityScore(candidate) - getCallQualityScore(current);
+  if (scoreDelta > 0) return candidate;
+  if (scoreDelta < 0) return current;
+
+  return getSortableTime(candidate.ingestedAt || candidate.callDate) >
+    getSortableTime(current.ingestedAt || current.callDate)
+    ? candidate
+    : current;
+}
+
+function getCallQualityScore(call: NormalizedCall) {
+  return (
+    (call.noShow ? 1000 : 0) +
+    (call.meetingId ? 80 : 0) +
+    (call.transcriptLink ? 40 : 0) +
+    (call.meetingLink ? 30 : 0) +
+    Math.min(call.attendanceReason.length, 300)
+  );
+}
+
+function normalizeIdentity(value: string) {
+  return normalizeText(value).replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function hasStrongIdentity(value: string) {
+  return Boolean(
+    value &&
+      value !== "unknown" &&
+      value !== "unknown rep" &&
+      value !== "client unavailable" &&
+      value !== "unavailable",
+  );
+}
+
+function getMinuteTimeKey(value: string | null) {
+  const date = new Date(value || "");
+  if (!Number.isFinite(date.getTime())) return "";
+  date.setUTCSeconds(0, 0);
+  return date.toISOString();
+}
+
+function getSortableTime(value: string | null) {
+  const time = new Date(value || "").getTime();
+  return Number.isFinite(time) ? time : 0;
 }
 
 function buildRepRows(
