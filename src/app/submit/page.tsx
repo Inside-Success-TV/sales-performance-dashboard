@@ -44,11 +44,6 @@ export default function SubmitPage() {
             <p className="mt-5 max-w-2xl text-[17px] font-medium leading-8 text-slate-500">
               Submit one closing-stage conversation and Magic Mike will turn it into a focused coaching report under your name.
             </p>
-            <div className="mt-6 max-w-2xl rounded-[22px] border border-red-100 bg-[#FEF2F2] p-4">
-              <p className="text-sm font-semibold leading-6 text-[#991B1B]">
-                Best for Call 2 or later, real prospect conversations, and calls where you want sharper closing feedback.
-              </p>
-            </div>
           </div>
         </header>
 
