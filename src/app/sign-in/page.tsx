@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { LogIn, ShieldCheck } from "lucide-react";
+import { Bot, ShieldCheck } from "lucide-react";
 import { signIn } from "@/auth";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { GoogleSignInButton } from "@/components/dashboard/google-sign-in-button";
 
 export const metadata: Metadata = {
   title: "Sign in | Magic Mike Bot",
@@ -23,42 +22,48 @@ export default async function SignInPage({
   const redirectTo = getSafeRedirect(callbackUrl);
 
   return (
-    <main className="magic-page flex min-h-[calc(100vh-72px)] items-center">
-      <div className="mx-auto w-full max-w-lg px-5 py-16 sm:px-8">
-        <Card className="magic-card overflow-hidden border-slate-200 bg-white shadow-xl">
-          <CardContent className="p-7 sm:p-9">
-            <div className="mb-7">
-              <span className="mb-5 grid size-12 place-items-center rounded-2xl bg-[#DC2626] text-white shadow-lg shadow-red-200">
-                <ShieldCheck className="size-6" />
-              </span>
-              <h1 className="text-3xl font-extrabold tracking-normal text-slate-950">
-                Sign in to Magic Mike
-              </h1>
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                Use your approved Google account to open reports and track verified dashboard usage.
-              </p>
+    <main className="magic-auth-page flex min-h-screen items-center justify-center px-5 py-10">
+      <div className="relative z-10 w-full max-w-[420px]">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <span className="grid size-16 place-items-center rounded-[22px] bg-[#DC2626] text-white shadow-[0_14px_32px_-10px_rgba(220,38,38,.75)]">
+            <Bot className="size-9" strokeWidth={2.2} />
+          </span>
+          <span className="mt-4 text-[13px] font-bold uppercase tracking-[0.2em] text-slate-400">
+            Inside Success TV
+          </span>
+        </div>
+
+        <section className="rounded-[22px] border border-black/[0.05] bg-white p-8 shadow-[0_1px_2px_rgba(17,17,26,.035),0_5px_18px_-10px_rgba(17,17,26,.09),0_28px_60px_-28px_rgba(17,17,26,.16)] sm:p-10">
+          <div className="text-center">
+            <h1 className="text-[27px] font-extrabold leading-[1.15] tracking-normal text-slate-900 sm:text-[30px]">
+              Welcome to Magic Mike <span className="text-[#DC2626]">Bot</span>
+            </h1>
+            <p className="mt-2.5 text-[15px] font-medium leading-relaxed text-slate-500">
+              Sign in to view your coaching reports.
+            </p>
+          </div>
+
+          {error ? (
+            <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium leading-6 text-red-700">
+              This Google account is not approved for Magic Mike. Use an Inside Success TV, Inside
+              Success, or Mawer Capital email.
             </div>
+          ) : null}
 
-            {error ? (
-              <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
-                This Google account is not approved for Magic Mike. Use an Inside Success TV,
-                Inside Success, or Mawer Capital email.
-              </div>
-            ) : null}
+          <form
+            action={async () => {
+              "use server";
+              await signIn("google", { redirectTo });
+            }}
+          >
+            <GoogleSignInButton />
+          </form>
 
-            <form
-              action={async () => {
-                "use server";
-                await signIn("google", { redirectTo });
-              }}
-            >
-              <Button type="submit" className="h-12 w-full rounded-full text-base font-bold">
-                <LogIn className="size-5" />
-                Continue with Google
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+          <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-[13px] font-medium text-slate-400">
+            <ShieldCheck className="size-3.5" strokeWidth={2.3} />
+            Use your company Google account
+          </p>
+        </section>
       </div>
     </main>
   );

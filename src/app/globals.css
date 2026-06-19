@@ -140,6 +140,27 @@
     font-family: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
   }
 
+  .magic-auth-page {
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(900px 460px at 50% -200px, rgba(220, 38, 38, 0.1), transparent 70%),
+      linear-gradient(180deg, #fbfafb 0%, #f4f3f5 42%);
+    color: #0f172a;
+    font-family: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: 0;
+  }
+
+  .magic-auth-page::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(15, 23, 42, 0.045) 1px, transparent 1px);
+    background-size: 22px 22px;
+    mask-image: radial-gradient(circle at 50% 38%, #000 0%, transparent 62%);
+    pointer-events: none;
+  }
+
   .magic-brand-mark {
     background: linear-gradient(145deg, #dc2626, #b91c1c);
     box-shadow: 0 10px 24px rgba(220, 38, 38, 0.22);
