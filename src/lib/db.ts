@@ -40,6 +40,7 @@ type SqlClient = ReturnType<typeof neon>;
 
 let sqlClient: SqlClient | null = null;
 let schemaReady = false;
+let schemaReadyPromise: Promise<void> | null = null;
 
 export function hasDatabase() {
   return Boolean(process.env.DATABASE_URL);
@@ -59,7 +60,24 @@ function getSql() {
 
 export async function ensureSchema() {
   if (schemaReady) return;
+  if (schemaReadyPromise) return schemaReadyPromise;
 
+  schemaReadyPromise = buildSchema()
+    .then(() => {
+      schemaReady = true;
+    })
+    .catch((error) => {
+      schemaReady = false;
+      throw error;
+    })
+    .finally(() => {
+      schemaReadyPromise = null;
+    });
+
+  return schemaReadyPromise;
+}
+
+async function buildSchema() {
   const sql = getSql();
   await sql`
     create table if not exists performance_calls (
@@ -278,8 +296,6 @@ export async function ensureSchema() {
   `;
   await sql`create index if not exists prompt_benchmark_costs_run_id_idx on prompt_benchmark_costs (run_id)`;
   await sql`create index if not exists prompt_benchmark_costs_result_id_idx on prompt_benchmark_costs (result_id)`;
-
-  schemaReady = true;
 }
 
 export async function upsertPerformanceCall(payload: NormalizedIngestPayload) {
