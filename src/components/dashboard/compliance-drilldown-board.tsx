@@ -394,7 +394,7 @@ function RepModal({
         {details.length ? (
           <div className="space-y-3">
             {details.map((detail) => (
-              <EvidenceCard key={detail.id} detail={detail} />
+              <EvidenceCard key={detail.id} detail={detail} activeCategory={category?.category} />
             ))}
           </div>
         ) : (
@@ -408,14 +408,20 @@ function RepModal({
   );
 }
 
-function EvidenceCard({ detail }: { detail: ComplianceFlagDetail }) {
+function EvidenceCard({
+  detail,
+  activeCategory,
+}: {
+  detail: ComplianceFlagDetail;
+  activeCategory?: string;
+}) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="rounded-full border-red-100 bg-[#FEF2F2] text-[#B91C1C]">
-              {detail.category}
+              {activeCategory || detail.category}
             </Badge>
             <SeverityBadge severity={detail.severity} />
           </div>
