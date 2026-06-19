@@ -2,14 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   BarChart3,
-  CalendarDays,
+  CircleAlert,
   CheckCircle2,
   Clock3,
   Eye,
   FileText,
+  History,
   MousePointerClick,
   Send,
   ShieldCheck,
+  Timer,
+  UserCheck,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -25,13 +28,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getUsageAnalytics } from "@/lib/db";
-import { formatDate, formatMiamiDateTime } from "@/lib/format";
+import { formatMiamiDateTime } from "@/lib/format";
 import type {
   UsageDailyPoint,
+  UsageLegacySummary,
   UsageManualSummary,
   UsageOfficialSummary,
   UsageRepEngagement,
-  UsageUnviewedReport,
+  UsageUnmappedUser,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -70,8 +74,8 @@ export default async function ManagerUsagePage() {
                 Magic Mike Bot Usage
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Official coaching reports and self-submitted feedback are tracked separately, so
-                managers can read adoption without mixing the two workflows.
+                Verified Google sign-in usage is tracked by viewer rep. Legacy anonymous events and
+                self-submitted feedback stay separate, so current adoption does not mix with old test traffic.
               </p>
             </div>
 
@@ -113,34 +117,34 @@ export default async function ManagerUsagePage() {
 
         {!hasEvents && analytics.configured ? (
           <div className="rounded-lg border bg-card p-4 text-sm leading-6 text-muted-foreground">
-            Usage tracking starts from the deployment that includes this page. Older dashboard visits
-            are not backfilled.
+            Verified rep usage starts from the Google sign-in deployment. Older anonymous dashboard
+            visits are preserved as legacy history but are not used for current rep engagement.
           </div>
         ) : null}
 
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
-            title="Official views in last 24 hours"
-            value={analytics.official.report_views_today}
-            description="Official coaching reports opened"
-            icon={Eye}
+            title="Engaged reports today"
+            value={analytics.official.report_engagements_today}
+            description="10+ seconds of visible reading"
+            icon={Timer}
           />
           <MetricCard
-            title="Official views this week"
-            value={analytics.official.report_views_7d}
-            description="Report opens in the last 7 days"
+            title="Engaged reports this week"
+            value={analytics.official.report_engagements_7d}
+            description="Verified official report engagement"
             icon={BarChart3}
           />
           <MetricCard
-            title="Active sessions"
-            value={analytics.official.active_sessions_7d}
-            description="Anonymous official-dashboard sessions"
-            icon={Users}
+            title="Verified users"
+            value={analytics.official.verified_users_7d}
+            description="Signed-in Google users in 7 days"
+            icon={UserCheck}
           />
           <MetricCard
-            title="Reps with activity"
+            title="Mapped reps active"
             value={analytics.official.reps_with_activity_7d}
-            description="Reps tied to official usage signals"
+            description="Matched to a rep identity"
             icon={CheckCircle2}
           />
         </section>
@@ -153,7 +157,11 @@ export default async function ManagerUsagePage() {
         <RepEngagementCard reps={analytics.repEngagement} />
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(380px,0.9fr)]">
-          <UnviewedReportsCard reports={analytics.unviewedReports} />
+          <UnmappedUsersCard users={analytics.unmappedUsers} />
+          <LegacyUsageCard legacy={analytics.legacy} />
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)]">
           <ManualUsageCard manual={analytics.manual} />
         </section>
       </div>
@@ -221,10 +229,10 @@ function DailyReportViewsCard({ daily }: { daily: UsageDailyPoint[] }) {
       <CardHeader className="border-b">
         <CardTitle className="flex items-center gap-2">
           <BarChart3 className="size-4" />
-          Daily Report Views
+          Daily Report Activity
         </CardTitle>
         <CardDescription>
-          Official coaching views are primary. Self-submitted views are shown separately.
+          Official bars count verified 10-second engagements. Self-submitted views remain separate.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -233,7 +241,7 @@ function DailyReportViewsCard({ daily }: { daily: UsageDailyPoint[] }) {
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1">
                 <span className="size-2 rounded-full bg-primary" />
-                Official coaching
+                Official engaged
               </span>
               <span className="inline-flex items-center gap-1">
                 <span className="size-2 rounded-full bg-accent-foreground/70" />
@@ -282,14 +290,24 @@ function OfficialSignalCard({ official }: { official: UsageOfficialSummary }) {
   return (
     <Card className="dashboard-card border bg-card/95">
       <CardHeader className="border-b">
-        <CardTitle>Official Coaching Signals</CardTitle>
-        <CardDescription>Secondary usage signals, kept out of the main scorecards.</CardDescription>
+        <CardTitle>Verified Coaching Signals</CardTitle>
+        <CardDescription>Signed-in official report activity only. Legacy anonymous rows are excluded.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
         <SignalRow
-          icon={CalendarDays}
-          label="Official views in 30 days"
-          value={official.report_views_30d}
+          icon={Eye}
+          label="Official opens in 7 days"
+          value={official.report_views_7d}
+        />
+        <SignalRow
+          icon={Timer}
+          label="Reading minutes in 7 days"
+          value={Math.round(official.engagement_seconds_7d / 60)}
+        />
+        <SignalRow
+          icon={CircleAlert}
+          label="Unmapped signed-in users"
+          value={official.unmapped_users_30d}
         />
         <SignalRow
           icon={MousePointerClick}
@@ -316,9 +334,9 @@ function RepEngagementCard({ reps }: { reps: UsageRepEngagement[] }) {
   return (
     <Card className="dashboard-card border bg-card/95">
       <CardHeader className="border-b">
-        <CardTitle>Official Rep Engagement</CardTitle>
+        <CardTitle>Verified Rep Engagement</CardTitle>
         <CardDescription>
-          This table only uses official coaching reports. It does not include self-submitted feedback.
+          Rows are based on the signed-in viewer rep. Engagement requires 10 seconds of visible report reading.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -328,8 +346,9 @@ function RepEngagementCard({ reps }: { reps: UsageRepEngagement[] }) {
               <TableRow>
                 <TableHead>Rep</TableHead>
                 <TableHead className="text-right">Reports</TableHead>
-                <TableHead className="text-right">Viewed</TableHead>
-                <TableHead className="text-right">Views</TableHead>
+                <TableHead className="text-right">Opens</TableHead>
+                <TableHead className="text-right">Engaged</TableHead>
+                <TableHead>Own vs others</TableHead>
                 <TableHead>Secondary signals</TableHead>
                 <TableHead>Last activity</TableHead>
               </TableRow>
@@ -345,14 +364,24 @@ function RepEngagementCard({ reps }: { reps: UsageRepEngagement[] }) {
                     </TableCell>
                     <TableCell className="text-right">{formatNumber(rep.generated_reports)}</TableCell>
                     <TableCell className="text-right">
-                      {formatNumber(rep.viewed_reports)}
-                      <span className="ml-1 text-xs text-muted-foreground">
-                        ({formatPercent(getViewRate(rep))})
-                      </span>
+                      {formatNumber(rep.report_views)}
                     </TableCell>
-                    <TableCell className="text-right">{formatNumber(rep.report_views)}</TableCell>
+                    <TableCell className="text-right">{formatNumber(rep.report_engagements)}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1.5">
+                        <Badge variant="outline">
+                          {formatNumber(rep.own_report_engagements)} own
+                        </Badge>
+                        <Badge variant="outline">
+                          {formatNumber(rep.other_report_engagements)} others
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Badge variant="outline">
+                          {formatMinutes(rep.engagement_seconds)} read
+                        </Badge>
                         <Badge variant="outline">{formatNumber(rep.rep_selections)} picks</Badge>
                         <Badge variant="outline">{formatNumber(linkClicks)} link clicks</Badge>
                       </div>
@@ -366,58 +395,84 @@ function RepEngagementCard({ reps }: { reps: UsageRepEngagement[] }) {
             </TableBody>
           </Table>
         ) : (
-          <EmptyPanel text="No official reps are available to summarize yet." />
+          <EmptyPanel text="No verified rep usage has been recorded yet." />
         )}
       </CardContent>
     </Card>
   );
 }
 
-function UnviewedReportsCard({ reports }: { reports: UsageUnviewedReport[] }) {
+function UnmappedUsersCard({ users }: { users: UsageUnmappedUser[] }) {
   return (
     <Card className="dashboard-card border bg-card/95">
       <CardHeader className="border-b">
         <CardTitle className="flex items-center gap-2">
-          <FileText className="size-4" />
-          Unviewed Official Reports
+          <CircleAlert className="size-4" />
+          Unmapped Signed-In Users
         </CardTitle>
-        <CardDescription>Official reports generated more than 48 hours ago with no view recorded.</CardDescription>
+        <CardDescription>
+          These users are allowed to sign in, but their Google identity did not safely match a rep.
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        {reports.length ? (
+        {users.length ? (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Report</TableHead>
-                <TableHead>Rep</TableHead>
-                <TableHead>Created</TableHead>
+                <TableHead>User</TableHead>
+                <TableHead className="text-right">Events</TableHead>
+                <TableHead className="text-right">Engaged</TableHead>
+                <TableHead>Last activity</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {reports.map((report) => (
-                <TableRow key={report.id}>
+              {users.map((user) => (
+                <TableRow key={user.viewer_email}>
                   <TableCell>
-                    <Link
-                      href={`/call/${report.id}?from=manager-usage`}
-                      className="font-medium hover:underline"
-                    >
-                      {report.client_name || `Report ${report.id}`}
-                    </Link>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Meeting {formatDate(report.call_date)}
-                    </p>
+                    <span className="font-medium">{user.viewer_name || user.viewer_email}</span>
+                    <p className="mt-1 text-xs text-muted-foreground">{user.viewer_email}</p>
                   </TableCell>
-                  <TableCell>{report.rep_name}</TableCell>
+                  <TableCell className="text-right">{formatNumber(user.events_30d)}</TableCell>
+                  <TableCell className="text-right">
+                    {formatNumber(user.report_engagements_30d)}
+                  </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {formatMiamiDateTime(report.created_at)}
+                    {user.last_activity_at ? formatMiamiDateTime(user.last_activity_at) : "No activity"}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         ) : (
-          <EmptyPanel text="No unviewed official reports older than 48 hours." />
+          <EmptyPanel text="No unmapped signed-in users in the last 30 days." />
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function LegacyUsageCard({ legacy }: { legacy: UsageLegacySummary }) {
+  return (
+    <Card className="dashboard-card border bg-card/95">
+      <CardHeader className="border-b">
+        <CardTitle className="flex items-center gap-2">
+          <History className="size-4" />
+          Legacy Anonymous Usage
+        </CardTitle>
+        <CardDescription>
+          Historical pre-login rows are preserved here, but excluded from verified rep metrics.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <SignalRow icon={FileText} label="Legacy events in 30 days" value={legacy.events_30d} />
+        <SignalRow icon={Eye} label="Legacy report opens" value={legacy.report_views_30d} />
+        <SignalRow icon={Users} label="Legacy sessions" value={legacy.sessions_30d} />
+        <div className="rounded-lg border bg-background/70 px-3 py-2">
+          <p className="text-xs text-muted-foreground">Last legacy activity</p>
+          <p className="mt-1 text-sm font-medium">
+            {legacy.last_activity_at ? formatMiamiDateTime(legacy.last_activity_at) : "No legacy activity"}
+          </p>
+        </div>
       </CardContent>
     </Card>
   );
@@ -498,11 +553,6 @@ function EmptyPanel({ text }: { text: string }) {
   );
 }
 
-function getViewRate(rep: UsageRepEngagement) {
-  if (!rep.generated_reports) return 0;
-  return rep.viewed_reports / rep.generated_reports;
-}
-
 function getStackWidth(value: number, max: number) {
   if (!value) return "0%";
   return `${Math.round((value / max) * 100)}%`;
@@ -512,8 +562,9 @@ function formatNumber(value: number) {
   return numberFormatter.format(value);
 }
 
-function formatPercent(value: number) {
-  return `${Math.round(value * 100)}%`;
+function formatMinutes(seconds: number) {
+  const minutes = Math.round(seconds / 60);
+  return `${formatNumber(minutes)}m`;
 }
 
 function formatDayLabel(day: string) {

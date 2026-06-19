@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { getAuthEmailDomain, normalizeAuthEmail } from "@/lib/auth-utils";
 import type { NormalizedIngestPayload } from "@/lib/ingest";
 import { normalizeStringList } from "@/lib/list-format";
 import type {
@@ -9,11 +10,13 @@ import type {
   UsageAnalytics,
   UsageDailyPoint,
   UsageEventBreakdown,
+  UsageLegacySummary,
   UsageManualSummary,
   UsageOfficialSummary,
   UsageRecentEvent,
   UsageRepEngagement,
   UsageTotals,
+  UsageUnmappedUser,
   UsageUnviewedReport,
   SalesCorrelationUsageData,
   SalesCorrelationUsageEvent,
@@ -144,9 +147,23 @@ export async function ensureSchema() {
       referrer text,
       user_agent text,
       metadata jsonb not null default '{}'::jsonb,
+      engagement_seconds integer not null default 0,
+      viewer_email text,
+      viewer_name text,
+      viewer_domain text,
+      viewer_rep_slug text,
+      viewer_rep_name text,
+      viewer_is_mapped boolean not null default false,
       created_at timestamptz not null default now()
     )
   `;
+  await sql`alter table dashboard_usage_events add column if not exists engagement_seconds integer not null default 0`;
+  await sql`alter table dashboard_usage_events add column if not exists viewer_email text`;
+  await sql`alter table dashboard_usage_events add column if not exists viewer_name text`;
+  await sql`alter table dashboard_usage_events add column if not exists viewer_domain text`;
+  await sql`alter table dashboard_usage_events add column if not exists viewer_rep_slug text`;
+  await sql`alter table dashboard_usage_events add column if not exists viewer_rep_name text`;
+  await sql`alter table dashboard_usage_events add column if not exists viewer_is_mapped boolean not null default false`;
   await sql`create index if not exists dashboard_usage_events_created_at_idx on dashboard_usage_events (created_at desc)`;
   await sql`create index if not exists dashboard_usage_events_event_created_idx on dashboard_usage_events (event_name, created_at desc)`;
   await sql`create index if not exists dashboard_usage_events_rep_created_idx on dashboard_usage_events (target_rep_slug, created_at desc)`;
@@ -266,6 +283,7 @@ export async function upsertPerformanceCall(payload: NormalizedIngestPayload) {
 export async function recordUsageEvent(payload: UsageEventPayload) {
   await ensureSchema();
   const sql = getSql();
+  const viewer = await resolveUsageViewer(sql, payload.viewer_email, payload.viewer_name);
 
   await sql.query(
     `
@@ -280,9 +298,16 @@ export async function recordUsageEvent(payload: UsageEventPayload) {
         path,
         referrer,
         user_agent,
-        metadata
+        metadata,
+        engagement_seconds,
+        viewer_email,
+        viewer_name,
+        viewer_domain,
+        viewer_rep_slug,
+        viewer_rep_name,
+        viewer_is_mapped
       )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18)
     `,
     [
       payload.event_name,
@@ -296,8 +321,106 @@ export async function recordUsageEvent(payload: UsageEventPayload) {
       payload.referrer || null,
       payload.user_agent || null,
       JSON.stringify(payload.metadata || {}),
+      getEngagementSeconds(payload.engagement_seconds),
+      viewer.viewer_email,
+      viewer.viewer_name,
+      viewer.viewer_domain,
+      viewer.viewer_rep_slug,
+      viewer.viewer_rep_name,
+      viewer.viewer_is_mapped,
     ],
   );
+}
+
+type ResolvedUsageViewer = {
+  viewer_email: string | null;
+  viewer_name: string | null;
+  viewer_domain: string | null;
+  viewer_rep_slug: string | null;
+  viewer_rep_name: string | null;
+  viewer_is_mapped: boolean;
+};
+
+async function resolveUsageViewer(
+  sql: SqlClient,
+  rawEmail: string | null | undefined,
+  rawName: string | null | undefined,
+): Promise<ResolvedUsageViewer> {
+  const viewerEmail = normalizeAuthEmail(rawEmail);
+  const viewerName = normalizeViewerName(rawName);
+  const viewerDomain = getAuthEmailDomain(viewerEmail);
+  const fallback: ResolvedUsageViewer = {
+    viewer_email: viewerEmail,
+    viewer_name: viewerName,
+    viewer_domain: viewerDomain,
+    viewer_rep_slug: null,
+    viewer_rep_name: null,
+    viewer_is_mapped: false,
+  };
+
+  if (!viewerEmail && !viewerName) return fallback;
+
+  if (viewerEmail) {
+    const rows = (await sql.query(
+      `
+        select
+          rep_slug,
+          max(rep_name) as rep_name,
+          max(updated_at) as latest_report_at
+        from performance_calls
+        where lower(rep_email) = lower($1)
+        group by rep_slug
+        order by latest_report_at desc nulls last
+      `,
+      [viewerEmail],
+    )) as Array<{ rep_slug: string; rep_name: string }>;
+
+    if (rows.length === 1) {
+      return {
+        ...fallback,
+        viewer_rep_slug: rows[0].rep_slug,
+        viewer_rep_name: rows[0].rep_name,
+        viewer_is_mapped: true,
+      };
+    }
+  }
+
+  if (viewerName) {
+    const rows = (await sql.query(
+      `
+        select
+          rep_slug,
+          max(rep_name) as rep_name,
+          max(updated_at) as latest_report_at
+        from performance_calls
+        where lower(regexp_replace(trim(rep_name), '\\s+', ' ', 'g')) = lower($1)
+        group by rep_slug
+        order by latest_report_at desc nulls last
+      `,
+      [viewerName],
+    )) as Array<{ rep_slug: string; rep_name: string }>;
+
+    if (rows.length === 1) {
+      return {
+        ...fallback,
+        viewer_rep_slug: rows[0].rep_slug,
+        viewer_rep_name: rows[0].rep_name,
+        viewer_is_mapped: true,
+      };
+    }
+  }
+
+  return fallback;
+}
+
+function normalizeViewerName(value: string | null | undefined) {
+  const normalized = value?.trim().replace(/\s+/g, " ");
+  return normalized || null;
+}
+
+function getEngagementSeconds(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.round(Number(value)));
 }
 
 export async function getUsageAnalytics(): Promise<UsageAnalytics> {
@@ -319,6 +442,8 @@ export async function getUsageAnalytics(): Promise<UsageAnalytics> {
       eventBreakdownRows,
       repEngagementRows,
       unviewedReportRows,
+      unmappedUserRows,
+      legacySummaryRows,
       recentEventRows,
     ] = await Promise.all([
       sql.query(
@@ -331,10 +456,27 @@ export async function getUsageAnalytics(): Promise<UsageAnalytics> {
               where created_at >= now() - interval '7 days'
                 and anonymous_session_id is not null
             )::int as sessions_7d,
+            count(distinct viewer_email) filter (
+              where created_at >= now() - interval '7 days'
+                and viewer_email is not null
+            )::int as verified_users_7d,
+            count(*) filter (
+              where created_at >= now() - interval '7 days'
+                and viewer_email is not null
+            )::int as verified_events_7d,
+            count(*) filter (
+              where created_at >= now() - interval '30 days'
+                and viewer_email is null
+            )::int as legacy_events_30d,
             count(*) filter (
               where event_name in ('report_detail_viewed', 'manual_report_viewed')
                 and created_at >= now() - interval '7 days'
             )::int as report_views_7d,
+            count(*) filter (
+              where event_name = 'report_engaged'
+                and viewer_is_mapped
+                and created_at >= now() - interval '7 days'
+            )::int as report_engagements_7d,
             count(*) filter (
               where event_name = 'rep_selected'
                 and created_at >= now() - interval '7 days'
@@ -356,7 +498,8 @@ export async function getUsageAnalytics(): Promise<UsageAnalytics> {
           with official_events as (
             select *
             from dashboard_usage_events
-            where event_name in ('dashboard_home_viewed', 'rep_selected', 'report_detail_viewed')
+            where source in ('official_dashboard', 'official_report')
+               or event_name in ('dashboard_home_viewed', 'rep_selected', 'report_detail_viewed', 'report_engaged', 'report_active_time')
                or (event_name = 'report_card_clicked' and report_id is not null)
                or (
                  event_name in ('google_doc_clicked', 'zoom_clicked', 'transcript_clicked')
@@ -368,34 +511,69 @@ export async function getUsageAnalytics(): Promise<UsageAnalytics> {
             (select count(*)::int from performance_calls) as total_reports,
             count(*) filter (
               where event_name = 'report_detail_viewed'
+                and viewer_is_mapped
                 and created_at >= now() - interval '1 day'
             )::int as report_views_today,
             count(*) filter (
               where event_name = 'report_detail_viewed'
+                and viewer_is_mapped
                 and created_at >= now() - interval '7 days'
             )::int as report_views_7d,
             count(*) filter (
               where event_name = 'report_detail_viewed'
+                and viewer_is_mapped
                 and created_at >= now() - interval '30 days'
             )::int as report_views_30d,
+            count(*) filter (
+              where event_name = 'report_engaged'
+                and viewer_is_mapped
+                and created_at >= now() - interval '1 day'
+            )::int as report_engagements_today,
+            count(*) filter (
+              where event_name = 'report_engaged'
+                and viewer_is_mapped
+                and created_at >= now() - interval '7 days'
+            )::int as report_engagements_7d,
+            count(*) filter (
+              where event_name = 'report_engaged'
+                and viewer_is_mapped
+                and created_at >= now() - interval '30 days'
+            )::int as report_engagements_30d,
+            coalesce(sum(engagement_seconds) filter (
+              where event_name = 'report_active_time'
+                and viewer_is_mapped
+                and created_at >= now() - interval '7 days'
+            ), 0)::int as engagement_seconds_7d,
             count(distinct anonymous_session_id) filter (
               where created_at >= now() - interval '7 days'
                 and anonymous_session_id is not null
             )::int as active_sessions_7d,
-            count(distinct target_rep_slug) filter (
+            count(distinct viewer_email) filter (
               where created_at >= now() - interval '7 days'
-                and target_rep_slug is not null
+                and viewer_email is not null
+            )::int as verified_users_7d,
+            count(distinct viewer_email) filter (
+              where created_at >= now() - interval '30 days'
+                and viewer_email is not null
+                and not viewer_is_mapped
+            )::int as unmapped_users_30d,
+            count(distinct viewer_rep_slug) filter (
+              where created_at >= now() - interval '7 days'
+                and viewer_is_mapped
+                and viewer_rep_slug is not null
             )::int as reps_with_activity_7d,
             count(*) filter (
               where event_name = 'rep_selected'
+                and viewer_is_mapped
                 and created_at >= now() - interval '7 days'
             )::int as rep_selections_7d,
             count(*) filter (
               where event_name in ('google_doc_clicked', 'zoom_clicked', 'transcript_clicked')
                 and report_id is not null
+                and viewer_is_mapped
                 and created_at >= now() - interval '7 days'
             )::int as link_clicks_7d,
-            max(created_at)::text as last_activity_at
+            max(created_at) filter (where viewer_email is not null)::text as last_activity_at
           from official_events
         `,
         [],
@@ -409,7 +587,9 @@ export async function getUsageAnalytics(): Promise<UsageAnalytics> {
                 'manual_reports_page_viewed',
                 'manual_submit_opened',
                 'manual_report_submitted',
-                'manual_report_viewed'
+                'manual_report_viewed',
+                'report_engaged',
+                'report_active_time'
               )
                or (event_name = 'report_card_clicked' and manual_public_id is not null)
                or (
@@ -467,7 +647,11 @@ export async function getUsageAnalytics(): Promise<UsageAnalytics> {
             count(events.id) filter (
               where events.event_name in ('report_detail_viewed', 'manual_report_viewed')
             )::int as report_views,
-            count(events.id) filter (where events.event_name = 'report_detail_viewed')::int as official_report_views,
+            count(events.id) filter (
+              where events.event_name = 'report_engaged'
+                and events.source = 'official_report'
+                and events.viewer_is_mapped
+            )::int as official_report_views,
             count(events.id) filter (where events.event_name = 'manual_report_viewed')::int as manual_report_views,
             count(events.id) filter (where events.event_name = 'rep_selected')::int as rep_selections,
             count(events.id) filter (where events.event_name = 'manual_report_submitted')::int as manual_submissions
@@ -492,63 +676,72 @@ export async function getUsageAnalytics(): Promise<UsageAnalytics> {
       ),
       sql.query(
         `
-          with report_views as (
+          with reps as (
             select
-              report_id,
-              count(*)::int as view_count,
-              max(created_at) as last_viewed_at
-            from dashboard_usage_events
-            where event_name = 'report_detail_viewed'
-              and report_id is not null
-            group by report_id
+              rep_slug,
+              max(rep_name) as rep_name,
+              count(*)::int as generated_reports
+            from performance_calls
+            group by rep_slug
           ),
-          report_link_clicks as (
+          official_events as (
             select
-              report_id,
-              count(*) filter (where event_name = 'google_doc_clicked')::int as doc_clicks,
-              count(*) filter (where event_name = 'zoom_clicked')::int as zoom_clicks,
-              count(*) filter (where event_name = 'transcript_clicked')::int as transcript_clicks,
-              max(created_at) as last_link_at
-            from dashboard_usage_events
-            where report_id is not null
-              and event_name in ('google_doc_clicked', 'zoom_clicked', 'transcript_clicked')
-            group by report_id
-          ),
-          rep_selections as (
-            select
-              target_rep_slug as rep_slug,
-              count(*)::int as rep_selections,
-              max(created_at) as last_selected_at
-            from dashboard_usage_events
-            where event_name = 'rep_selected'
-              and target_rep_slug is not null
-            group by target_rep_slug
+              events.*,
+              calls.rep_slug as report_rep_slug
+            from dashboard_usage_events events
+            left join performance_calls calls on calls.id = events.report_id
+            where events.viewer_is_mapped
+              and events.viewer_rep_slug is not null
+              and (
+                events.source in ('official_dashboard', 'official_report')
+                or events.event_name in ('dashboard_home_viewed', 'rep_selected', 'report_detail_viewed', 'report_engaged', 'report_active_time')
+                or (
+                  events.event_name in ('report_card_clicked', 'google_doc_clicked', 'zoom_clicked', 'transcript_clicked')
+                  and events.report_id is not null
+                )
+              )
           )
           select
-            calls.rep_name,
-            calls.rep_slug,
-            count(calls.id)::int as generated_reports,
-            count(distinct calls.id) filter (where coalesce(report_views.view_count, 0) > 0)::int as viewed_reports,
-            coalesce(sum(report_views.view_count), 0)::int as report_views,
-            coalesce(max(rep_selections.rep_selections), 0)::int as rep_selections,
-            coalesce(sum(report_link_clicks.doc_clicks), 0)::int as doc_clicks,
-            coalesce(sum(report_link_clicks.zoom_clicks), 0)::int as zoom_clicks,
-            coalesce(sum(report_link_clicks.transcript_clicks), 0)::int as transcript_clicks,
-            nullif(
-              greatest(
-                coalesce(max(report_views.last_viewed_at), 'epoch'::timestamptz),
-                coalesce(max(report_link_clicks.last_link_at), 'epoch'::timestamptz),
-                coalesce(max(rep_selections.last_selected_at), 'epoch'::timestamptz)
-              ),
-              'epoch'::timestamptz
-            )::text as last_activity_at
-          from performance_calls calls
-          left join report_views on report_views.report_id = calls.id
-          left join report_link_clicks on report_link_clicks.report_id = calls.id
-          left join rep_selections on rep_selections.rep_slug = calls.rep_slug
-          group by calls.rep_name, calls.rep_slug
-          order by report_views desc, viewed_reports desc, rep_selections desc, generated_reports desc, calls.rep_name asc
-          limit 50
+            reps.rep_name,
+            reps.rep_slug,
+            reps.generated_reports,
+            count(distinct official_events.report_id) filter (
+              where official_events.event_name = 'report_engaged'
+                and official_events.report_id is not null
+            )::int as viewed_reports,
+            count(*) filter (where official_events.event_name = 'report_detail_viewed')::int as report_views,
+            count(*) filter (where official_events.event_name = 'report_engaged')::int as report_engagements,
+            count(*) filter (
+              where official_events.event_name = 'report_detail_viewed'
+                and official_events.report_rep_slug = reps.rep_slug
+            )::int as own_report_opens,
+            count(*) filter (
+              where official_events.event_name = 'report_detail_viewed'
+                and official_events.report_rep_slug is not null
+                and official_events.report_rep_slug <> reps.rep_slug
+            )::int as other_report_opens,
+            count(*) filter (
+              where official_events.event_name = 'report_engaged'
+                and official_events.report_rep_slug = reps.rep_slug
+            )::int as own_report_engagements,
+            count(*) filter (
+              where official_events.event_name = 'report_engaged'
+                and official_events.report_rep_slug is not null
+                and official_events.report_rep_slug <> reps.rep_slug
+            )::int as other_report_engagements,
+            coalesce(sum(official_events.engagement_seconds) filter (
+              where official_events.event_name = 'report_active_time'
+            ), 0)::int as engagement_seconds,
+            count(*) filter (where official_events.event_name = 'rep_selected')::int as rep_selections,
+            count(*) filter (where official_events.event_name = 'google_doc_clicked')::int as doc_clicks,
+            count(*) filter (where official_events.event_name = 'zoom_clicked')::int as zoom_clicks,
+            count(*) filter (where official_events.event_name = 'transcript_clicked')::int as transcript_clicks,
+            max(official_events.created_at)::text as last_activity_at
+          from reps
+          left join official_events on official_events.viewer_rep_slug = reps.rep_slug
+          group by reps.rep_name, reps.rep_slug, reps.generated_reports
+          order by report_engagements desc, report_views desc, generated_reports desc, reps.rep_name asc
+          limit 75
         `,
         [],
       ),
@@ -564,7 +757,8 @@ export async function getUsageAnalytics(): Promise<UsageAnalytics> {
           from performance_calls calls
           left join dashboard_usage_events events
             on events.report_id = calls.id
-           and events.event_name = 'report_detail_viewed'
+           and events.event_name = 'report_engaged'
+           and events.viewer_is_mapped
           where calls.created_at < now() - interval '48 hours'
           group by calls.id
           having count(events.id) = 0
@@ -576,11 +770,55 @@ export async function getUsageAnalytics(): Promise<UsageAnalytics> {
       sql.query(
         `
           select
+            viewer_email,
+            max(viewer_name) as viewer_name,
+            max(viewer_domain) as viewer_domain,
+            count(*)::int as events_30d,
+            count(*) filter (where event_name in ('report_detail_viewed', 'manual_report_viewed'))::int as report_opens_30d,
+            count(*) filter (where event_name = 'report_engaged')::int as report_engagements_30d,
+            max(created_at)::text as last_activity_at
+          from dashboard_usage_events
+          where viewer_email is not null
+            and not viewer_is_mapped
+            and created_at >= now() - interval '30 days'
+          group by viewer_email
+          order by last_activity_at desc
+          limit 25
+        `,
+        [],
+      ),
+      sql.query(
+        `
+          select
+            count(*) filter (where created_at >= now() - interval '30 days')::int as events_30d,
+            count(*) filter (
+              where event_name in ('report_detail_viewed', 'manual_report_viewed')
+                and created_at >= now() - interval '30 days'
+            )::int as report_views_30d,
+            count(distinct anonymous_session_id) filter (
+              where anonymous_session_id is not null
+                and created_at >= now() - interval '30 days'
+            )::int as sessions_30d,
+            max(created_at)::text as last_activity_at
+          from dashboard_usage_events
+          where viewer_email is null
+        `,
+        [],
+      ),
+      sql.query(
+        `
+          select
             id,
             event_name,
             source,
             target_rep_slug,
             target_rep_name,
+            viewer_email,
+            viewer_name,
+            viewer_rep_slug,
+            viewer_rep_name,
+            viewer_is_mapped,
+            engagement_seconds,
             report_id,
             manual_public_id,
             path,
@@ -603,6 +841,8 @@ export async function getUsageAnalytics(): Promise<UsageAnalytics> {
       eventBreakdown: (eventBreakdownRows as UsageEventBreakdown[]).map(normalizeUsageEventBreakdown),
       repEngagement: (repEngagementRows as UsageRepEngagement[]).map(normalizeUsageRepEngagement),
       unviewedReports: (unviewedReportRows as UsageUnviewedReport[]).map(normalizeUsageUnviewedReport),
+      unmappedUsers: (unmappedUserRows as UsageUnmappedUser[]).map(normalizeUsageUnmappedUser),
+      legacy: normalizeUsageLegacySummary((legacySummaryRows as UsageLegacySummary[])[0]),
       recentEvents: (recentEventRows as UsageRecentEvent[]).map(normalizeUsageRecentEvent),
     };
   } catch (error) {
@@ -650,16 +890,19 @@ export async function getSalesCorrelationUsageData(
               events.event_name,
               events.created_at,
               events.report_id,
-              coalesce(events.target_rep_slug, calls.rep_slug) as rep_slug,
-              coalesce(events.target_rep_name, calls.rep_name) as rep_name
+              events.viewer_rep_slug as rep_slug,
+              events.viewer_rep_name as rep_name
             from dashboard_usage_events events
-            left join performance_calls calls on calls.id = events.report_id
-            where events.event_name in ('dashboard_home_viewed', 'rep_selected', 'report_detail_viewed')
-               or (events.event_name = 'report_card_clicked' and events.report_id is not null)
-               or (
-                 events.event_name in ('google_doc_clicked', 'zoom_clicked', 'transcript_clicked')
-                 and events.report_id is not null
-               )
+            where events.viewer_is_mapped
+              and events.viewer_rep_slug is not null
+              and events.source = 'official_report'
+              and (
+                events.event_name = 'report_engaged'
+                or (
+                  events.event_name in ('google_doc_clicked', 'zoom_clicked', 'transcript_clicked')
+                  and events.report_id is not null
+                )
+              )
           ),
           event_agg as (
             select
@@ -670,29 +913,23 @@ export async function getSalesCorrelationUsageData(
               )::int as usage_events_window,
               count(*)::int as usage_events_all,
               count(*) filter (
-                where event_name = 'report_detail_viewed'
+                where event_name = 'report_engaged'
                   and created_at >= now() - ($1::int * interval '1 day')
               )::int as report_views_window,
               count(*) filter (
-                where event_name = 'report_detail_viewed'
+                where event_name = 'report_engaged'
               )::int as report_views_all,
-              count(*) filter (
-                where event_name = 'report_card_clicked'
-                  and created_at >= now() - ($1::int * interval '1 day')
-              )::int as report_clicks_window,
+              0::int as report_clicks_window,
               count(distinct report_id) filter (
-                where event_name = 'report_detail_viewed'
+                where event_name = 'report_engaged'
                   and report_id is not null
               )::int as viewed_reports,
               count(distinct report_id) filter (
-                  where event_name = 'report_detail_viewed'
+                  where event_name = 'report_engaged'
                   and report_id is not null
                   and created_at >= now() - ($1::int * interval '1 day')
               )::int as viewed_reports_window,
-              count(*) filter (
-                where event_name = 'rep_selected'
-                  and created_at >= now() - ($1::int * interval '1 day')
-              )::int as rep_selections_window,
+              0::int as rep_selections_window,
               count(*) filter (
                 where event_name in ('google_doc_clicked', 'zoom_clicked', 'transcript_clicked')
                   and created_at >= now() - ($1::int * interval '1 day')
@@ -733,14 +970,15 @@ export async function getSalesCorrelationUsageData(
               events.event_name,
               events.created_at,
               events.report_id,
-              coalesce(events.target_rep_slug, calls.rep_slug) as rep_slug,
-              coalesce(events.target_rep_name, calls.rep_name) as rep_name
+              events.viewer_rep_slug as rep_slug,
+              events.viewer_rep_name as rep_name
             from dashboard_usage_events events
-            left join performance_calls calls on calls.id = events.report_id
             where events.created_at >= now() - ($1::int * interval '1 day')
+              and events.viewer_is_mapped
+              and events.viewer_rep_slug is not null
+              and events.source = 'official_report'
               and (
-                events.event_name in ('dashboard_home_viewed', 'rep_selected', 'report_detail_viewed')
-                or (events.event_name = 'report_card_clicked' and events.report_id is not null)
+                events.event_name = 'report_engaged'
                 or (
                   events.event_name in ('google_doc_clicked', 'zoom_clicked', 'transcript_clicked')
                   and events.report_id is not null
@@ -1104,7 +1342,11 @@ function normalizeUsageTotals(row: UsageTotals | undefined): UsageTotals {
     events_7d: Number(row?.events_7d || 0),
     events_30d: Number(row?.events_30d || 0),
     sessions_7d: Number(row?.sessions_7d || 0),
+    verified_users_7d: Number(row?.verified_users_7d || 0),
+    verified_events_7d: Number(row?.verified_events_7d || 0),
+    legacy_events_30d: Number(row?.legacy_events_30d || 0),
     report_views_7d: Number(row?.report_views_7d || 0),
+    report_engagements_7d: Number(row?.report_engagements_7d || 0),
     rep_selections_7d: Number(row?.rep_selections_7d || 0),
     manual_submissions_7d: Number(row?.manual_submissions_7d || 0),
     link_clicks_7d: Number(row?.link_clicks_7d || 0),
@@ -1118,7 +1360,13 @@ function normalizeUsageOfficialSummary(row: UsageOfficialSummary | undefined): U
     report_views_today: Number(row?.report_views_today || 0),
     report_views_7d: Number(row?.report_views_7d || 0),
     report_views_30d: Number(row?.report_views_30d || 0),
+    report_engagements_today: Number(row?.report_engagements_today || 0),
+    report_engagements_7d: Number(row?.report_engagements_7d || 0),
+    report_engagements_30d: Number(row?.report_engagements_30d || 0),
+    engagement_seconds_7d: Number(row?.engagement_seconds_7d || 0),
     active_sessions_7d: Number(row?.active_sessions_7d || 0),
+    verified_users_7d: Number(row?.verified_users_7d || 0),
+    unmapped_users_30d: Number(row?.unmapped_users_30d || 0),
     reps_with_activity_7d: Number(row?.reps_with_activity_7d || 0),
     rep_selections_7d: Number(row?.rep_selections_7d || 0),
     link_clicks_7d: Number(row?.link_clicks_7d || 0),
@@ -1166,6 +1414,12 @@ function normalizeUsageRepEngagement(row: UsageRepEngagement): UsageRepEngagemen
     generated_reports: Number(row.generated_reports || 0),
     viewed_reports: Number(row.viewed_reports || 0),
     report_views: Number(row.report_views || 0),
+    report_engagements: Number(row.report_engagements || 0),
+    own_report_opens: Number(row.own_report_opens || 0),
+    other_report_opens: Number(row.other_report_opens || 0),
+    own_report_engagements: Number(row.own_report_engagements || 0),
+    other_report_engagements: Number(row.other_report_engagements || 0),
+    engagement_seconds: Number(row.engagement_seconds || 0),
     rep_selections: Number(row.rep_selections || 0),
     doc_clicks: Number(row.doc_clicks || 0),
     zoom_clicks: Number(row.zoom_clicks || 0),
@@ -1185,6 +1439,27 @@ function normalizeUsageUnviewedReport(row: UsageUnviewedReport): UsageUnviewedRe
   };
 }
 
+function normalizeUsageUnmappedUser(row: UsageUnmappedUser): UsageUnmappedUser {
+  return {
+    viewer_email: row.viewer_email,
+    viewer_name: row.viewer_name,
+    viewer_domain: row.viewer_domain,
+    events_30d: Number(row.events_30d || 0),
+    report_opens_30d: Number(row.report_opens_30d || 0),
+    report_engagements_30d: Number(row.report_engagements_30d || 0),
+    last_activity_at: row.last_activity_at,
+  };
+}
+
+function normalizeUsageLegacySummary(row: UsageLegacySummary | undefined): UsageLegacySummary {
+  return {
+    events_30d: Number(row?.events_30d || 0),
+    report_views_30d: Number(row?.report_views_30d || 0),
+    sessions_30d: Number(row?.sessions_30d || 0),
+    last_activity_at: row?.last_activity_at || null,
+  };
+}
+
 function normalizeUsageRecentEvent(row: UsageRecentEvent): UsageRecentEvent {
   return {
     id: Number(row.id),
@@ -1192,6 +1467,12 @@ function normalizeUsageRecentEvent(row: UsageRecentEvent): UsageRecentEvent {
     source: row.source,
     target_rep_slug: row.target_rep_slug,
     target_rep_name: row.target_rep_name,
+    viewer_email: row.viewer_email,
+    viewer_name: row.viewer_name,
+    viewer_rep_slug: row.viewer_rep_slug,
+    viewer_rep_name: row.viewer_rep_name,
+    viewer_is_mapped: Boolean(row.viewer_is_mapped),
+    engagement_seconds: Number(row.engagement_seconds || 0),
     report_id: row.report_id ? Number(row.report_id) : null,
     manual_public_id: row.manual_public_id,
     path: row.path,
@@ -1256,6 +1537,8 @@ function getFallbackUsageAnalytics(): UsageAnalytics {
     eventBreakdown: [],
     repEngagement: [],
     unviewedReports: [],
+    unmappedUsers: [],
+    legacy: normalizeUsageLegacySummary(undefined),
     recentEvents: [],
   };
 }

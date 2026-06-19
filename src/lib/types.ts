@@ -102,7 +102,11 @@ export type UsageTotals = {
   events_7d: number;
   events_30d: number;
   sessions_7d: number;
+  verified_users_7d: number;
+  verified_events_7d: number;
+  legacy_events_30d: number;
   report_views_7d: number;
+  report_engagements_7d: number;
   rep_selections_7d: number;
   manual_submissions_7d: number;
   link_clicks_7d: number;
@@ -114,7 +118,13 @@ export type UsageOfficialSummary = {
   report_views_today: number;
   report_views_7d: number;
   report_views_30d: number;
+  report_engagements_today: number;
+  report_engagements_7d: number;
+  report_engagements_30d: number;
+  engagement_seconds_7d: number;
   active_sessions_7d: number;
+  verified_users_7d: number;
+  unmapped_users_30d: number;
   reps_with_activity_7d: number;
   rep_selections_7d: number;
   link_clicks_7d: number;
@@ -154,6 +164,12 @@ export type UsageRepEngagement = {
   generated_reports: number;
   viewed_reports: number;
   report_views: number;
+  report_engagements: number;
+  own_report_opens: number;
+  other_report_opens: number;
+  own_report_engagements: number;
+  other_report_engagements: number;
+  engagement_seconds: number;
   rep_selections: number;
   doc_clicks: number;
   zoom_clicks: number;
@@ -170,12 +186,35 @@ export type UsageUnviewedReport = {
   created_at: string;
 };
 
+export type UsageUnmappedUser = {
+  viewer_email: string;
+  viewer_name: string | null;
+  viewer_domain: string | null;
+  events_30d: number;
+  report_opens_30d: number;
+  report_engagements_30d: number;
+  last_activity_at: string | null;
+};
+
+export type UsageLegacySummary = {
+  events_30d: number;
+  report_views_30d: number;
+  sessions_30d: number;
+  last_activity_at: string | null;
+};
+
 export type UsageRecentEvent = {
   id: number;
   event_name: string;
   source: string | null;
   target_rep_slug: string | null;
   target_rep_name: string | null;
+  viewer_email: string | null;
+  viewer_name: string | null;
+  viewer_rep_slug: string | null;
+  viewer_rep_name: string | null;
+  viewer_is_mapped: boolean;
+  engagement_seconds: number;
   report_id: number | null;
   manual_public_id: string | null;
   path: string | null;
@@ -193,6 +232,8 @@ export type UsageAnalytics = {
   eventBreakdown: UsageEventBreakdown[];
   repEngagement: UsageRepEngagement[];
   unviewedReports: UsageUnviewedReport[];
+  unmappedUsers: UsageUnmappedUser[];
+  legacy: UsageLegacySummary;
   recentEvents: UsageRecentEvent[];
 };
 

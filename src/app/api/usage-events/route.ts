@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { auth } from "@/auth";
 import { hasDatabase, recordUsageEvent } from "@/lib/db";
 import { USAGE_EVENT_NAMES } from "@/lib/usage-events";
 
@@ -12,6 +13,7 @@ const usageEventSchema = z.object({
   target_rep_name: z.string().max(200).optional().nullable(),
   report_id: z.coerce.number().int().positive().optional().nullable(),
   manual_public_id: z.string().max(200).optional().nullable(),
+  engagement_seconds: z.coerce.number().int().nonnegative().optional().nullable(),
   anonymous_session_id: z.string().max(120).optional().nullable(),
   path: z.string().max(500).optional().nullable(),
   referrer: z.string().max(500).optional().nullable(),
@@ -25,10 +27,13 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = usageEventSchema.parse(await request.json());
+    const session = await auth();
 
     await recordUsageEvent({
       ...body,
       user_agent: request.headers.get("user-agent") || null,
+      viewer_email: session?.user?.email || null,
+      viewer_name: session?.user?.name || null,
     });
 
     return NextResponse.json({ ok: true });

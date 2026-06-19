@@ -10,6 +10,8 @@ export const USAGE_EVENT_NAMES = [
   "transcript_clicked",
   "manual_report_submitted",
   "manual_report_viewed",
+  "report_engaged",
+  "report_active_time",
 ] as const;
 
 export type UsageEventName = (typeof USAGE_EVENT_NAMES)[number];
@@ -20,6 +22,7 @@ export type UsageEventData = {
   target_rep_name?: string | null;
   report_id?: number | null;
   manual_public_id?: string | null;
+  engagement_seconds?: number | null;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -29,4 +32,6 @@ export type UsageEventPayload = UsageEventData & {
   path?: string | null;
   referrer?: string | null;
   user_agent?: string | null;
+  viewer_email?: string | null;
+  viewer_name?: string | null;
 };

@@ -95,8 +95,8 @@ export default async function SalesCorrelationPage({
                 Magic Mike Sales Impact
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Read-only sales data is compared with official Magic Mike usage so managers can
-                see whether dashboard adoption is moving with new paid sales.
+                Read-only sales data is compared with verified Magic Mike report engagement so
+                managers can see whether actual rep reading is moving with new paid sales.
               </p>
             </div>
 
@@ -131,7 +131,7 @@ export default async function SalesCorrelationPage({
           />
           <MetricCard
             icon={Users}
-            title="Reps with usage"
+            title="Reps with verified usage"
             value={formatNumber(analytics.summary.repsWithUsage)}
             description={`${formatNumber(analytics.summary.matchedRepCount)} matched to sales sheet`}
           />
@@ -306,7 +306,7 @@ function getExecutiveSupportingText(analytics: SalesCorrelationAnalytics) {
     analytics.summary.periodDays,
   );
 
-  return `Usage data covers ${usageCoverage}. Treat this as directional, not causal proof. Official coaching usage only; self-submitted feedback and compliance signals are excluded.`;
+  return `Usage data covers ${usageCoverage}. Treat this as directional, not causal proof. Only verified official report engagement is included; self-submitted feedback, legacy anonymous traffic, and compliance signals are excluded.`;
 }
 
 function MetricCard({
@@ -353,7 +353,7 @@ function UsageGroupsCard({
           Usage Groups
         </CardTitle>
         <CardDescription>
-          Reps are grouped by official Magic Mike usage in the last {periodDays} days.
+          Reps are grouped by verified Magic Mike official-report engagement in the last {periodDays} days.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
@@ -382,7 +382,7 @@ function UsageGroupsCard({
               <MiniStat label="Reps" value={formatNumber(group.repCount)} />
               <MiniStat label="Usage signals" value={formatNumber(group.totalUsageSignals)} />
               <MiniStat label="New deals" value={formatNumber(group.totalNewDeals)} />
-              <MiniStat label="View rate" value={formatPercent(group.avgUsageRate)} />
+              <MiniStat label="Engaged rate" value={formatPercent(group.avgUsageRate)} />
             </div>
           </div>
         ))}
@@ -415,7 +415,7 @@ function BeforeAfterCard({
           Before vs After Usage
         </CardTitle>
         <CardDescription>
-          Same-length windows around each rep&apos;s first official usage signal.
+          Same-length windows around each rep&apos;s first verified official engagement signal.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
@@ -430,7 +430,7 @@ function BeforeAfterCard({
             {formatCurrency(delta)}
           </p>
           <p className="mt-2 text-xs leading-5 text-muted-foreground">
-            Based on {formatNumber(eligible.length)} reps with at least one tracked official usage signal.
+            Based on {formatNumber(eligible.length)} reps with at least one verified official usage signal.
           </p>
         </div>
       </CardContent>
@@ -450,7 +450,7 @@ function WeeklyTrendCard({ weekly }: { weekly: SalesCorrelationWeeklyPoint[] }) 
           Weekly Usage and New Sales
         </CardTitle>
         <CardDescription>
-          A simple weekly read of usage signals alongside new paid revenue.
+          A simple weekly read of verified usage signals alongside new paid revenue.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
@@ -575,7 +575,7 @@ function RepImpactTable({
           Rep Sales Impact
         </CardTitle>
         <CardDescription>
-          Official usage and new paid sales for the last {periodDays} days.
+          Verified official engagement and new paid sales for the last {periodDays} days.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -601,9 +601,9 @@ function RepImpactTable({
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="font-medium">{formatNumber(rep.reportViewsWindow)} views</div>
+                      <div className="font-medium">{formatNumber(rep.reportViewsWindow)} engaged</div>
                       <div className="text-xs text-muted-foreground">
-                        {formatNumber(rep.usageSignalsWindow)} signals, {formatPercent(rep.usageRate)} viewed
+                        {formatNumber(rep.usageSignalsWindow)} verified signals
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
@@ -645,7 +645,7 @@ function UnmatchedSalesRepsCard({ reps }: { reps: SalesCorrelationRep[] }) {
           Sales Reps Not Matched To Dashboard Usage
         </CardTitle>
         <CardDescription>
-          These names had new paid sales in the sheet but no matching official Magic Mike usage row.
+          These names had new paid sales in the sheet but no matching verified Magic Mike usage row.
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -21,7 +21,11 @@ import { TrackRecentlyViewed } from "@/components/dashboard/recently-viewed";
 import { ReportFeedbackWidget } from "@/components/dashboard/report-feedback-widget";
 import { ReportChatPanel } from "@/components/dashboard/report-chat-panel";
 import { ReportVersionBadge } from "@/components/dashboard/report-version-badge";
-import { TrackedExternalLink, TrackUsageEvent } from "@/components/dashboard/usage-tracker";
+import {
+  ReportEngagementTracker,
+  TrackedExternalLink,
+  TrackUsageEvent,
+} from "@/components/dashboard/usage-tracker";
 import { resolveCloseSection } from "@/lib/close-section";
 import { getPerformanceCall } from "@/lib/db";
 import { formatMiamiDateTime, formatMiamiMeetingDateTime } from "@/lib/format";
@@ -63,24 +67,25 @@ export default async function CallPage({
         label: "Received",
         value: formatMiamiDateTime(call.updated_at),
       };
+  const officialUsageEventData = {
+    source: "official_report",
+    target_rep_slug: call.rep_slug,
+    target_rep_name: call.rep_name,
+    report_id: call.id,
+    metadata: {
+      client_name: call.client_name,
+      meeting_title: call.meeting_title,
+    },
+  };
 
   return (
     <main className="magic-page">
       <TrackRecentlyViewed call={call} />
       {!isManagerUsageView ? (
-        <TrackUsageEvent
-          eventName="report_detail_viewed"
-          eventData={{
-            source: "official_report",
-            target_rep_slug: call.rep_slug,
-            target_rep_name: call.rep_name,
-            report_id: call.id,
-            metadata: {
-              client_name: call.client_name,
-              meeting_title: call.meeting_title,
-            },
-          }}
-        />
+        <>
+          <TrackUsageEvent eventName="report_detail_viewed" eventData={officialUsageEventData} />
+          <ReportEngagementTracker eventData={officialUsageEventData} />
+        </>
       ) : null}
       <div className="magic-container max-w-5xl">
         <article className="space-y-4">
