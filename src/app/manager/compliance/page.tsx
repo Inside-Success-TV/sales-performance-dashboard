@@ -51,7 +51,7 @@ export default async function ManagerCompliancePage({
 
   return (
     <main className="magic-page">
-      <div className="magic-container flex max-w-7xl flex-col gap-5">
+      <div className="mx-auto flex w-full max-w-[84rem] flex-col gap-5 px-5 pb-16 pt-8 sm:px-8">
         <header className="magic-card magic-hero p-5 md:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl">

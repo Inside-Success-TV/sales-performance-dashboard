@@ -146,11 +146,11 @@ export async function getComplianceDashboardData(
   const fallback = getFallbackDashboardData(generatedAt, sheetUrl, filters);
 
   try {
-    const [repRecords, categoryRecords, rawRecords] = await Promise.all([
+    const [repRecords, categoryRecords] = await Promise.all([
       fetchSheetRecords(REP_SUMMARY_SHEET, "Week"),
       fetchSheetRecords(CATEGORY_SUMMARY_SHEET, "Week"),
-      fetchSheetRecords(RAW_LOG_SHEET, "Date"),
     ]);
+    const rawRecords = await fetchOptionalSheetRecords(RAW_LOG_SHEET, "Date");
     const repRows = repRecords.map(normalizeRepSummaryRow).filter(isPresent);
     const categoryRows = categoryRecords.map(normalizeCategorySummaryRow).filter(isPresent);
     const rawRows = rawRecords.map(normalizeRawComplianceRow).filter(isPresent);
@@ -269,6 +269,7 @@ async function fetchSheetRecords(sheetName: string, requiredHeader: string) {
   const params = new URLSearchParams({
     tqx: "out:csv",
     sheet: sheetName,
+    headers: "1",
   });
   const url = `https://docs.google.com/spreadsheets/d/${COMPLIANCE_SHEET_ID}/gviz/tq?${params}`;
   const controller = new AbortController();
@@ -291,11 +292,25 @@ async function fetchSheetRecords(sheetName: string, requiredHeader: string) {
   }
 }
 
+async function fetchOptionalSheetRecords(sheetName: string, requiredHeader: string) {
+  try {
+    return await fetchSheetRecords(sheetName, requiredHeader);
+  } catch (error) {
+    console.warn(
+      `Optional compliance sheet read failed for ${sheetName}: ${
+        error instanceof Error ? error.message : "unknown error"
+      }`,
+    );
+    return [];
+  }
+}
+
 function recordsFromCsv(csv: string, sheetName: string, requiredHeader: string) {
   const rows = parseCsv(csv).filter((row) => row.some((cell) => cell.trim()));
-  const [headers, ...body] = rows;
+  const [rawHeaders, ...body] = rows;
+  const headers = rawHeaders?.map((header) => header.trim()) || [];
 
-  if (!headers?.includes(requiredHeader)) {
+  if (!headers.includes(requiredHeader)) {
     throw new Error(`${sheetName} does not have the expected ${requiredHeader} header row.`);
   }
 
