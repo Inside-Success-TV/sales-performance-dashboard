@@ -767,7 +767,7 @@ function DeleteConversationDialog({
           <div className="min-w-0 flex-1">
             <h2 className="text-base font-extrabold tracking-normal text-slate-950">Delete chat?</h2>
             <p className="mt-1 text-[13px] font-medium leading-5 text-slate-500">
-              This removes it from your chat list. The conversation stays saved in backend records.
+              This removes it from your chat list.
             </p>
           </div>
         </div>
