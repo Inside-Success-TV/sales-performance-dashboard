@@ -7,6 +7,7 @@ const requiredFiles = [
   "src/app/ask-sales-faq/page.tsx",
   "src/app/api/ask-sales-faq/route.ts",
   "src/app/api/ask-sales-faq/conversations/route.ts",
+  "src/app/api/ask-sales-faq/conversations/[conversationId]/route.ts",
   "src/app/api/ask-sales-faq/feedback/route.ts",
   "src/components/ask-sales-faq/ask-sales-faq-chat.tsx",
   "src/lib/ask-sales-faq/access.ts",
@@ -39,6 +40,7 @@ if (missingFiles.length === 0) {
   const page = read("src/app/ask-sales-faq/page.tsx");
   const chatRoute = read("src/app/api/ask-sales-faq/route.ts");
   const historyRoute = read("src/app/api/ask-sales-faq/conversations/route.ts");
+  const conversationActionRoute = read("src/app/api/ask-sales-faq/conversations/[conversationId]/route.ts");
   const feedbackRoute = read("src/app/api/ask-sales-faq/feedback/route.ts");
   const feedbackSync = read("src/lib/ask-sales-faq/feedback-sync.ts");
   const nav = read("src/components/dashboard/main-nav.tsx");
@@ -58,13 +60,13 @@ if (missingFiles.length === 0) {
 
   addCheck(
     "api routes call auth directly",
-    [chatRoute, historyRoute, feedbackRoute].every((content) => content.includes("await auth()")),
+    [chatRoute, historyRoute, conversationActionRoute, feedbackRoute].every((content) => content.includes("await auth()")),
     "all api routes call auth",
   );
 
   addCheck(
     "api routes use access gate",
-    [chatRoute, historyRoute, feedbackRoute].every((content) => content.includes("getAskSalesFaqAccess")),
+    [chatRoute, historyRoute, conversationActionRoute, feedbackRoute].every((content) => content.includes("getAskSalesFaqAccess")),
     "all api routes use access gate",
   );
 
@@ -97,6 +99,33 @@ if (missingFiles.length === 0) {
   );
 
   addCheck(
+    "conversation delete is soft-delete and backend-retained",
+    db.includes("status = 'deleted'") &&
+      db.includes("deleted_at") &&
+      conversationActionRoute.includes("retainedInBackend: true") &&
+      !conversationActionRoute.includes("delete from ask_sales_faq"),
+    "delete hides chat from sidebar without deleting rows",
+  );
+
+  addCheck(
+    "show list answer is approved and deterministic",
+    bundle.includes("Legacy Makers") &&
+      bundle.includes("Masters of Innovation") &&
+      bundle.includes("all tv shows") &&
+      runtime.includes("buildDeterministicApprovedAnswer") &&
+      runtime.includes("extractApprovedShowList"),
+    "show-list questions can answer from approved article without model drift",
+  );
+
+  addCheck(
+    "pricing starter prompt has approved guard coverage",
+    bundle.includes("current istv prices") &&
+      bundle.includes("price and payment plans") &&
+      bundle.includes("payment plans"),
+    "common pricing/payment-plan phrasing routes to approved pricing article",
+  );
+
+  addCheck(
     "feature flag env vars are documented",
     [
       "ASK_SALES_FAQ_ENABLED",
@@ -126,7 +155,7 @@ if (missingFiles.length === 0) {
     "access gate checks flag and allowlist",
   );
 
-  const scanned = [page, chatRoute, historyRoute, feedbackRoute, feedbackSync, runtime, access, bundle, db, envExample];
+  const scanned = [page, chatRoute, historyRoute, conversationActionRoute, feedbackRoute, feedbackSync, runtime, access, bundle, db, envExample];
   const secretHit = scanned.some((content) => secretPatterns.some((pattern) => pattern.test(content)));
   addCheck("no committed api-key-like secrets", !secretHit, secretHit ? "secret-like value found" : "no secret-like value found");
 }

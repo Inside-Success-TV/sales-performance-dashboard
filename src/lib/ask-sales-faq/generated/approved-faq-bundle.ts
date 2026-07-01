@@ -63,24 +63,58 @@ If the recording link is missing, access is denied, or sharing permissions are u
     lastReviewed: "2026-06-30",
     body: String.raw`## Answer
 
-For the most up-to-date list of active shows, check the project operations channel. New shows are added there.
+Use the latest approved show list below when a rep asks what shows we currently do.
 
-The show list shared by Luke Gent on 2026-06-30 is useful current evidence, but the maintained source is project operations. If a rep needs to confirm whether a show is currently active, paused, newly added, or missing from a form/dropdown, they should verify against project operations instead of relying on old sheets, old videos, public pages, or memory.
+The internal maintenance source for show changes is project operations, where new shows are added. Normal reps may not have access to that channel, so the bot should answer from this approved list and route only brand-new, paused, disputed, or missing-show status questions to the current sales/ops owner.
+
+## Latest Approved Show List
+
+- Legacy Makers
+- Women in Power
+- Operation CEO
+- America's Top Lawyers
+- America's Best Doctors
+- America's Top Trainers
+- America's Top Agents
+- Kingdom Creators
+- Mompreneurs
+- Couples of America
+- Builders of America
+- Legal Titans
+- Life Changers
+- Project Beauty
+- Mindset Masters
+- Love Experts
+- Live Longer
+- Americas Top Contractors
+- Blue Collar America
+- America's Authors
+- America's Top Physicians
+- Doctors of America
+- Rise of Her
+- Made It In America
+- Wealth Makers
+- Beyond Success
+- American Founders
+- Leading with Purpose
+- Impact Makers TV
+- Masters of Innovation
 
 ## What Reps Can Say
 
-- "The maintained source for the current show list is project operations."
-- "If there is any doubt about a show's current status, check project operations before telling the prospect."
+- "The latest approved show list I have is: Legacy Makers, Women in Power, Operation CEO, America's Top Lawyers, America's Best Doctors, America's Top Trainers, America's Top Agents, Kingdom Creators, Mompreneurs, Couples of America, Builders of America, Legal Titans, Life Changers, Project Beauty, Mindset Masters, Love Experts, Live Longer, Americas Top Contractors, Blue Collar America, America's Authors, America's Top Physicians, Doctors of America, Rise of Her, Made It In America, Wealth Makers, Beyond Success, American Founders, Leading with Purpose, Impact Makers TV, and Masters of Innovation."
+- "If a show was just added, paused, missing from a form, or disputed, I need to confirm with the current sales/ops owner before giving a final answer."
 
 ## What Reps Must Not Say
 
 - Do not rely on old show lists, old dropdowns, old examples, or public pages as the final source.
-- Do not promise that a show is active if it is not confirmed in the maintained source.
-- Do not treat the 2026-06-30 static list as permanently current.
+- Do not tell reps to check project operations directly if they do not have access.
+- Do not promise that a newly mentioned, paused, missing, or disputed show is active unless it is confirmed by the current sales/ops owner.
+- Do not treat this list as permanently current after a new approved update supersedes it.
 
 ## Route If Unclear
 
-If current show status is unclear, route to the project operations source/channel before answering.`,
+If a rep asks about a show that is not on this list, a show that may have just launched, a show that may be paused, or a show missing from a dropdown/form, route to the current sales/ops owner instead of guessing.`,
   },
   {
     id: "internal-material-sharing-boundaries",
@@ -454,7 +488,8 @@ export const ASK_SALES_FAQ_POLICY_RULES: {
       id: "route-current-show-status",
       decision: "route_from_approved_article",
       article_id: "current-show-source",
-      reason: "Current show status can drift; verify in project operations.",
+      reason:
+        "Current show status can drift; answer from the approved list and route newly added, paused, disputed, or missing-show cases to the current sales/ops owner.",
       match_any: ["is love experts active", "currently active", "active right now", "missing from the dropdown", "paused"],
     },
     {
@@ -526,8 +561,20 @@ export const ASK_SALES_FAQ_POLICY_RULES: {
       id: "answer-current-show-source",
       decision: "answer_from_approved_article",
       article_id: "current-show-source",
-      reason: "Approved article answers where to check current show list.",
-      match_any: ["current active show list", "current show list", "active show list", "where should i check"],
+      reason: "Approved article answers the latest approved show list and where updates are maintained.",
+      match_any: [
+        "current active show list",
+        "current show list",
+        "active show list",
+        "where should i check",
+        "all tv shows",
+        "list of all tv shows",
+        "tv shows that we do",
+        "shows that we do",
+        "what shows do we do",
+        "list all shows",
+        "all shows we do",
+      ],
     },
     {
       id: "answer-refund-split",
@@ -548,7 +595,23 @@ export const ASK_SALES_FAQ_POLICY_RULES: {
       decision: "answer_from_approved_article",
       article_id: "istv-nlceo-pricing-and-same-day-discount",
       reason: "Approved pricing article covers ISTV, NLCEO, and same-day discount boundaries.",
-      match_any: ["lite istv", "standard istv", "premium istv", "vip or premium istv", "next level ceo", "daymond john", "same day discount", "main istv call 2"],
+      match_any: [
+        "lite istv",
+        "standard istv",
+        "premium istv",
+        "vip or premium istv",
+        "current istv prices",
+        "istv prices",
+        "istv pricing",
+        "current packages and prices",
+        "package prices",
+        "payment plans",
+        "price and payment plans",
+        "next level ceo",
+        "daymond john",
+        "same day discount",
+        "main istv call 2",
+      ],
     },
     {
       id: "answer-payment-boundaries",
@@ -583,7 +646,7 @@ export const ASK_SALES_FAQ_POLICY_RULES: {
 
 export const ASK_SALES_FAQ_BUNDLE_META = {
   schemaVersion: 1,
-  generatedFrom: "Inside-Success/faq-chatbot@b0174de",
+  generatedFrom: "Inside-Success/faq-chatbot@25b65f1",
   generatedAt: "2026-07-01",
   approvedArticleCount: APPROVED_FAQ_ARTICLES.length,
 };

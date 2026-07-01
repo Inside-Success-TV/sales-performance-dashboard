@@ -214,10 +214,14 @@ async function buildSchema() {
       viewer_name text,
       title text,
       status text not null default 'active' check (status in ('active', 'archived', 'deleted')),
+      deleted_at timestamptz,
+      deleted_by text,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     )
   `;
+  await sql`alter table ask_sales_faq_conversations add column if not exists deleted_at timestamptz`;
+  await sql`alter table ask_sales_faq_conversations add column if not exists deleted_by text`;
   await sql`create index if not exists ask_sales_faq_conversations_viewer_updated_idx on ask_sales_faq_conversations (viewer_email, updated_at desc)`;
 
   await sql`
@@ -2381,6 +2385,55 @@ export async function getAskSalesFaqConversations(
   }
 
   return result;
+}
+
+export async function renameAskSalesFaqConversation(payload: {
+  conversationId: string;
+  viewerEmail: string;
+  title: string;
+}) {
+  if (!hasDatabase()) return false;
+
+  await ensureSchema();
+  const rows = (await getSql().query(
+    `
+      update ask_sales_faq_conversations
+      set title = $3,
+          updated_at = now()
+      where id = $1
+        and viewer_email = $2
+        and status = 'active'
+      returning id
+    `,
+    [payload.conversationId, payload.viewerEmail, payload.title],
+  )) as Array<{ id: string }>;
+
+  return rows.length > 0;
+}
+
+export async function deleteAskSalesFaqConversationForViewer(payload: {
+  conversationId: string;
+  viewerEmail: string;
+}) {
+  if (!hasDatabase()) return false;
+
+  await ensureSchema();
+  const rows = (await getSql().query(
+    `
+      update ask_sales_faq_conversations
+      set status = 'deleted',
+          deleted_at = now(),
+          deleted_by = $2,
+          updated_at = now()
+      where id = $1
+        and viewer_email = $2
+        and status = 'active'
+      returning id
+    `,
+    [payload.conversationId, payload.viewerEmail],
+  )) as Array<{ id: string }>;
+
+  return rows.length > 0;
 }
 
 export async function saveAskSalesFaqFeedback(payload: AskSalesFaqFeedbackPayload) {

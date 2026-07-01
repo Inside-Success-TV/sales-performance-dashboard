@@ -18,14 +18,17 @@ import {
   MessageCircleQuestion,
   MessageSquare,
   MessageSquarePlus,
+  MoreHorizontal,
   Package,
   PanelLeft,
   PanelLeftClose,
+  Pencil,
   Search,
   Send,
   ShieldCheck,
   ThumbsDown,
   ThumbsUp,
+  Trash2,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -65,6 +68,12 @@ type FeedbackResponse = {
   ok?: boolean;
   error?: string;
   sheetSync?: SheetSyncResponse;
+};
+
+type ConversationActionResponse = {
+  ok?: boolean;
+  error?: string;
+  title?: string;
 };
 
 const starterPrompts = [
@@ -142,6 +151,12 @@ export function AskSalesFaqChat() {
   const [searchQuery, setSearchQuery] = useState("");
   const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<string, FeedbackState>>({});
   const [error, setError] = useState<string | null>(null);
+  const [conversationMenuId, setConversationMenuId] = useState<string | null>(null);
+  const [renamingConversation, setRenamingConversation] = useState<AskSalesFaqConversationSummary | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [deletingConversation, setDeletingConversation] = useState<AskSalesFaqConversationSummary | null>(null);
+  const [conversationActionError, setConversationActionError] = useState<string | null>(null);
+  const [conversationActionSaving, setConversationActionSaving] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const topicGroups = useMemo(buildTopicGroups, []);
@@ -215,6 +230,84 @@ export function AskSalesFaqChat() {
     setFeedbackByMessageId({});
     setError(null);
     setDrawerOpen(false);
+  }
+
+  function beginRenameConversation(conversation: AskSalesFaqConversationSummary) {
+    setConversationMenuId(null);
+    setConversationActionError(null);
+    setRenamingConversation(conversation);
+    setRenameDraft(titleForConversation(conversation));
+  }
+
+  async function saveConversationRename() {
+    if (!renamingConversation || conversationActionSaving) return;
+    const title = renameDraft.replace(/\s+/g, " ").trim();
+    if (!title) {
+      setConversationActionError("Enter a chat name.");
+      return;
+    }
+
+    setConversationActionSaving(true);
+    setConversationActionError(null);
+
+    try {
+      const response = await fetch(`/api/ask-sales-faq/conversations/${encodeURIComponent(renamingConversation.id)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      const data = (await response.json()) as ConversationActionResponse;
+      if (!response.ok || !data.ok) throw new Error(data.error || "Chat could not be renamed.");
+
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === renamingConversation.id
+            ? { ...conversation, title: data.title || title, updatedAt: new Date().toISOString() }
+            : conversation,
+        ),
+      );
+      setRenamingConversation(null);
+      setRenameDraft("");
+    } catch (renameError) {
+      setConversationActionError(renameError instanceof Error ? renameError.message : "Chat could not be renamed.");
+    } finally {
+      setConversationActionSaving(false);
+    }
+  }
+
+  function beginDeleteConversation(conversation: AskSalesFaqConversationSummary) {
+    setConversationMenuId(null);
+    setConversationActionError(null);
+    setDeletingConversation(conversation);
+  }
+
+  async function confirmDeleteConversation() {
+    if (!deletingConversation || conversationActionSaving) return;
+    const conversationId = deletingConversation.id;
+
+    setConversationActionSaving(true);
+    setConversationActionError(null);
+
+    try {
+      const response = await fetch(`/api/ask-sales-faq/conversations/${encodeURIComponent(conversationId)}`, {
+        method: "DELETE",
+      });
+      const data = (await response.json()) as ConversationActionResponse;
+      if (!response.ok || !data.ok) throw new Error(data.error || "Chat could not be deleted.");
+
+      setConversations((current) => current.filter((conversation) => conversation.id !== conversationId));
+      if (activeConversationId === conversationId) {
+        setActiveConversationId(null);
+        setMessages([]);
+        setFeedbackByMessageId({});
+        setInput("");
+      }
+      setDeletingConversation(null);
+    } catch (deleteError) {
+      setConversationActionError(deleteError instanceof Error ? deleteError.message : "Chat could not be deleted.");
+    } finally {
+      setConversationActionSaving(false);
+    }
   }
 
   async function submitQuestion(event?: FormEvent<HTMLFormElement>, override?: string) {
@@ -382,6 +475,12 @@ export function AskSalesFaqChat() {
         onSearchQueryChange={setSearchQuery}
         onOpenConversation={openConversation}
         onNewConversation={startNewConversation}
+        openMenuConversationId={conversationMenuId}
+        onToggleConversationMenu={(conversationId) =>
+          setConversationMenuId((current) => (current === conversationId ? null : conversationId))
+        }
+        onRenameConversation={beginRenameConversation}
+        onDeleteConversation={beginDeleteConversation}
         onBrowse={() => {
           setBrowseOpen(true);
           setDrawerOpen(false);
@@ -485,7 +584,7 @@ export function AskSalesFaqChat() {
 
         <form
           onSubmit={submitQuestion}
-          className="shrink-0 border-t border-slate-200/75 bg-white/88 px-4 py-3 backdrop-blur sm:px-6"
+          className="shrink-0 border-t border-slate-200/75 bg-white/88 px-4 pb-4 pt-3 backdrop-blur sm:px-6"
         >
           <div className="mx-auto w-full max-w-3xl">
             <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-white p-2 pl-4 shadow-[0_1px_2px_rgba(17,17,26,.04),0_8px_22px_-14px_rgba(17,17,26,.18)] focus-within:border-slate-300">
@@ -518,7 +617,140 @@ export function AskSalesFaqChat() {
       </div>
 
       {browseOpen ? <BrowseTopics topicGroups={topicGroups} onClose={() => setBrowseOpen(false)} onPick={askTopic} /> : null}
+      {renamingConversation ? (
+        <RenameConversationDialog
+          conversation={renamingConversation}
+          title={renameDraft}
+          error={conversationActionError}
+          saving={conversationActionSaving}
+          onTitleChange={setRenameDraft}
+          onCancel={() => {
+            setRenamingConversation(null);
+            setRenameDraft("");
+            setConversationActionError(null);
+          }}
+          onSave={() => void saveConversationRename()}
+        />
+      ) : null}
+      {deletingConversation ? (
+        <DeleteConversationDialog
+          conversation={deletingConversation}
+          error={conversationActionError}
+          saving={conversationActionSaving}
+          onCancel={() => {
+            setDeletingConversation(null);
+            setConversationActionError(null);
+          }}
+          onDelete={() => void confirmDeleteConversation()}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function RenameConversationDialog({
+  conversation,
+  title,
+  error,
+  saving,
+  onTitleChange,
+  onCancel,
+  onSave,
+}: {
+  conversation: AskSalesFaqConversationSummary;
+  title: string;
+  error: string | null;
+  saving: boolean;
+  onTitleChange: (value: string) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/35 px-4 backdrop-blur-sm">
+      <form
+        className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_50px_-22px_rgba(15,23,42,.5)]"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave();
+        }}
+      >
+        <div className="flex items-start gap-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#FEF2F2] text-[#DC2626]">
+            <Pencil className="size-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-extrabold tracking-normal text-slate-950">Rename chat</h2>
+            <p className="mt-1 truncate text-[12.5px] font-medium text-slate-400">{titleForConversation(conversation)}</p>
+          </div>
+        </div>
+        <label className="mt-4 block text-[12.5px] font-bold text-slate-600" htmlFor="ask-sales-faq-rename-title">
+          Chat name
+        </label>
+        <input
+          id="ask-sales-faq-rename-title"
+          value={title}
+          onChange={(event) => onTitleChange(event.target.value)}
+          autoFocus
+          maxLength={90}
+          className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-400"
+        />
+        {error ? <p className="mt-2 text-[12.5px] font-semibold text-[#B91C1C]">{error}</p> : null}
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="outline" className="rounded-xl" onClick={onCancel} disabled={saving}>
+            Cancel
+          </Button>
+          <Button type="submit" className="rounded-xl bg-[#DC2626] text-white hover:bg-[#B91C1C]" disabled={saving || !title.trim()}>
+            {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+            Save
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function DeleteConversationDialog({
+  conversation,
+  error,
+  saving,
+  onCancel,
+  onDelete,
+}: {
+  conversation: AskSalesFaqConversationSummary;
+  error: string | null;
+  saving: boolean;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/35 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_50px_-22px_rgba(15,23,42,.5)]">
+        <div className="flex items-start gap-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#FEF2F2] text-[#DC2626]">
+            <Trash2 className="size-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-extrabold tracking-normal text-slate-950">Delete chat?</h2>
+            <p className="mt-1 text-[13px] font-medium leading-5 text-slate-500">
+              This removes it from your chat list. The conversation stays saved in backend records.
+            </p>
+          </div>
+        </div>
+        <p className="mt-3 truncate rounded-xl bg-slate-50 px-3 py-2 text-[13px] font-semibold text-slate-600">
+          {titleForConversation(conversation)}
+        </p>
+        {error ? <p className="mt-2 text-[12.5px] font-semibold text-[#B91C1C]">{error}</p> : null}
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="outline" className="rounded-xl" onClick={onCancel} disabled={saving}>
+            Cancel
+          </Button>
+          <Button type="button" className="rounded-xl bg-[#DC2626] text-white hover:bg-[#B91C1C]" onClick={onDelete} disabled={saving}>
+            {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+            Delete
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -531,6 +763,10 @@ function FaqSidebar({
   onSearchQueryChange,
   onOpenConversation,
   onNewConversation,
+  openMenuConversationId,
+  onToggleConversationMenu,
+  onRenameConversation,
+  onDeleteConversation,
   onBrowse,
   onCloseDrawer,
   onCollapse,
@@ -543,6 +779,10 @@ function FaqSidebar({
   onSearchQueryChange: (value: string) => void;
   onOpenConversation: (conversation: AskSalesFaqConversationSummary) => void;
   onNewConversation: () => void;
+  openMenuConversationId: string | null;
+  onToggleConversationMenu: (conversationId: string) => void;
+  onRenameConversation: (conversation: AskSalesFaqConversationSummary) => void;
+  onDeleteConversation: (conversation: AskSalesFaqConversationSummary) => void;
   onBrowse: () => void;
   onCloseDrawer: () => void;
   onCollapse: () => void;
@@ -624,35 +864,74 @@ function FaqSidebar({
         {conversations.length ? (
           <div className="space-y-0.5">
             {conversations.map((conversation) => (
-              <button
+              <div
                 key={conversation.id}
-                type="button"
-                onClick={() => onOpenConversation(conversation)}
                 className={cn(
-                  "group mx-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors",
+                  "group relative mx-2 flex w-[calc(100%-1rem)] items-center gap-1.5 rounded-xl transition-colors",
                   activeConversationId === conversation.id ? "bg-[#FEF2F2]" : "hover:bg-slate-100",
                 )}
               >
-                <MessageSquare
-                  className={cn(
-                    "size-4 shrink-0",
-                    activeConversationId === conversation.id ? "text-[#DC2626]" : "text-slate-400",
-                  )}
-                />
-                <span className="min-w-0 flex-1">
-                  <span
+                <button
+                  type="button"
+                  onClick={() => onOpenConversation(conversation)}
+                  className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-3 py-2 text-left"
+                >
+                  <MessageSquare
                     className={cn(
-                      "block truncate text-[13px]",
-                      activeConversationId === conversation.id ? "font-bold text-[#B91C1C]" : "font-semibold text-slate-700",
+                      "size-4 shrink-0",
+                      activeConversationId === conversation.id ? "text-[#DC2626]" : "text-slate-400",
                     )}
-                  >
-                    {titleForConversation(conversation)}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className={cn(
+                        "block truncate text-[13px]",
+                        activeConversationId === conversation.id ? "font-bold text-[#B91C1C]" : "font-semibold text-slate-700",
+                      )}
+                    >
+                      {titleForConversation(conversation)}
+                    </span>
                   </span>
-                </span>
-                <span className="shrink-0 text-[10.5px] font-semibold text-slate-300">
-                  {formatTimestamp(conversation.updatedAt)}
-                </span>
-              </button>
+                  <span className="shrink-0 text-[10.5px] font-semibold text-slate-300">
+                    {formatTimestamp(conversation.updatedAt)}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleConversationMenu(conversation.id);
+                  }}
+                  className={cn(
+                    "mr-1 grid size-7 shrink-0 place-items-center rounded-lg text-slate-400 opacity-100 transition hover:bg-white hover:text-slate-700 sm:opacity-0 sm:group-hover:opacity-100",
+                    openMenuConversationId === conversation.id ? "bg-white text-slate-700 opacity-100 shadow-sm" : "",
+                  )}
+                  aria-label={`Open actions for ${titleForConversation(conversation)}`}
+                  aria-expanded={openMenuConversationId === conversation.id}
+                >
+                  <MoreHorizontal className="size-4" />
+                </button>
+                {openMenuConversationId === conversation.id ? (
+                  <div className="absolute right-2 top-9 z-20 w-36 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-[0_12px_30px_-18px_rgba(15,23,42,.45)]">
+                    <button
+                      type="button"
+                      onClick={() => onRenameConversation(conversation)}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <Pencil className="size-3.5 text-slate-400" />
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteConversation(conversation)}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] font-semibold text-[#B91C1C] hover:bg-[#FEF2F2]"
+                    >
+                      <Trash2 className="size-3.5" />
+                      Delete
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             ))}
           </div>
         ) : (
@@ -662,7 +941,7 @@ function FaqSidebar({
         )}
       </div>
 
-      <div className="shrink-0 border-t border-slate-200/80 bg-[#FBFAFB] p-3">
+      <div className="shrink-0 border-t border-slate-200/80 bg-[#FBFAFB] px-3 pb-4 pt-3">
         <Button
           type="button"
           onClick={onNewConversation}

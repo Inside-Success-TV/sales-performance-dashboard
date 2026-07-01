@@ -162,6 +162,15 @@ export async function runAskSalesFaq(question: string): Promise<AskSalesFaqRunti
     return safeFallback(startedAt, sanitizedQuestion, redactions, "missing_article");
   }
 
+  const deterministicAnswer = buildDeterministicApprovedAnswer({
+    startedAt,
+    sanitizedQuestion,
+    redactions,
+    decision,
+    article,
+  });
+  if (deterministicAnswer) return deterministicAnswer;
+
   try {
     const providerResult = await generateProviderAnswer({
       question: sanitizedQuestion,
@@ -225,6 +234,69 @@ function safeFallback(
     matchedArticleId: null,
     errorClass,
   };
+}
+
+function buildDeterministicApprovedAnswer(input: {
+  startedAt: number;
+  sanitizedQuestion: string;
+  redactions: string[];
+  decision: GuardDecision;
+  article: ApprovedFaqArticle;
+}): AskSalesFaqRuntimeResult | null {
+  if (input.article.id !== "current-show-source") return null;
+
+  const shows = extractApprovedShowList(input.article.body);
+  if (!shows.length) return null;
+
+  const routeRequired = input.decision.decision === "route_from_approved_article";
+  const normalizedQuestion = normalizeText(input.sanitizedQuestion);
+  const showList = shows.join(", ");
+  let answer = `The latest approved show list I have is: ${showList}.`;
+  let routeReason: string | null = null;
+
+  if (routeRequired) {
+    const namedShow = shows.find((show) => phrasePresent(show, normalizedQuestion));
+    if (namedShow) {
+      answer = `${namedShow} is on the latest approved show list I have. For same-day active/paused status, route to the current sales/ops owner before giving a final prospect answer.`;
+    } else if (phrasePresent("missing", normalizedQuestion) || phrasePresent("dropdown", normalizedQuestion)) {
+      answer =
+        "Confirm this with the current sales/ops owner before telling the prospect whether the show is active, paused, or unavailable.";
+    } else {
+      answer = `${answer} For same-day active/paused status, route to the current sales/ops owner before giving a final prospect answer.`;
+    }
+    routeReason = "Specific show status can drift and should be confirmed by the current sales/ops owner.";
+  }
+
+  return {
+    ok: true,
+    conversationId: "",
+    messageId: "",
+    answer,
+    outcome: input.decision.decision,
+    source: {
+      label: input.article.title,
+      lastReviewed: input.article.lastReviewed,
+      approved: true,
+      expandableDetails: `Approved by ${input.article.approvedBy} on ${input.article.approvedAt}.`,
+    },
+    model: null,
+    provider: null,
+    needsRoute: routeRequired,
+    routeReason,
+    redactions: input.redactions,
+    latencyMs: Date.now() - input.startedAt,
+    sanitizedQuestion: input.sanitizedQuestion,
+    matchedArticleId: input.article.id,
+    errorClass: null,
+  };
+}
+
+function extractApprovedShowList(body: string) {
+  const section = body.split("## Latest Approved Show List")[1]?.split("\n## ")[0] || "";
+  return section
+    .split("\n")
+    .map((line) => line.trim().match(/^-\s+(.+)$/)?.[1]?.trim() || "")
+    .filter(Boolean);
 }
 
 function noModelResponse(decision: GuardDecision) {
