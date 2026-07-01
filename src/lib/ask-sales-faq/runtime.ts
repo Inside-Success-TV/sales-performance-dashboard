@@ -364,6 +364,7 @@ async function generateProviderAnswer(input: {
           "Return only JSON with keys: answer, summary, sections, selected_source_ids, needs_route, route_reason, confidence_label, confidence_score.",
           "sections must be an array of objects with title, optional body, optional items array, and optional tone: default, good, warning, or route.",
           "selected_source_ids must contain only IDs from the evidence packet and should list the sources actually used for the answer.",
+          "confidence_score must be an integer from 0 to 100, not a 0-to-1 decimal. confidence_label must match the score: High 80-100, Medium 50-79, Low 0-49.",
           "Return valid JSON only. Do not use markdown. The first character must be { and the last character must be }.",
         ].join("\n"),
       },
@@ -781,6 +782,7 @@ function extractJsonObject(value: string) {
 }
 
 function normalizeModelOutput(output: Partial<ModelOutput>): ModelOutput {
+  const confidenceScore = parseConfidenceScore(output.confidence_score);
   return {
     answer: sanitizeModelAnswer(String(output.answer || "")),
     summary: typeof output.summary === "string" ? sanitizeModelAnswer(output.summary) : undefined,
@@ -790,8 +792,8 @@ function normalizeModelOutput(output: Partial<ModelOutput>): ModelOutput {
       : [],
     needs_route: Boolean(output.needs_route),
     route_reason: typeof output.route_reason === "string" ? sanitizeModelAnswer(output.route_reason) : "",
-    confidence_label: parseConfidenceLabel(output.confidence_label),
-    confidence_score: typeof output.confidence_score === "number" ? output.confidence_score : undefined,
+    confidence_label: confidenceScore === undefined ? parseConfidenceLabel(output.confidence_label) : confidenceLabelFromScore(confidenceScore),
+    confidence_score: confidenceScore,
   };
 }
 
@@ -826,6 +828,18 @@ function normalizeModelStructuredAnswer(
 
 function parseConfidenceLabel(value: unknown): "High" | "Medium" | "Low" | undefined {
   return value === "High" || value === "Medium" || value === "Low" ? value : undefined;
+}
+
+function parseConfidenceScore(value: unknown) {
+  const numericValue = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  if (!Number.isFinite(numericValue)) return undefined;
+  return clampConfidence(numericValue >= 0 && numericValue <= 1 ? numericValue * 100 : numericValue);
+}
+
+function confidenceLabelFromScore(score: number): "High" | "Medium" | "Low" {
+  if (score >= 80) return "High";
+  if (score >= 50) return "Medium";
+  return "Low";
 }
 
 function parseSectionTone(value: unknown): "default" | "good" | "warning" | "route" | undefined {

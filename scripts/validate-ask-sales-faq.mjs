@@ -195,6 +195,15 @@ if (missingFiles.length === 0) {
   );
 
   addCheck(
+    "confidence scores are normalized before display",
+    runtime.includes("confidence_score must be an integer from 0 to 100") &&
+      runtime.includes("parseConfidenceScore") &&
+      runtime.includes("confidenceLabelFromScore") &&
+      runtime.includes("numericValue >= 0 && numericValue <= 1 ? numericValue * 100 : numericValue"),
+    "model confidence is normalized from decimal scale to 0-100 and label is aligned to score",
+  );
+
+  addCheck(
     "follow-up questions include recent chat context",
     chatRoute.includes("runAskSalesFaq(lastMessage.content, messages)") &&
       runtime.includes("buildConversationContext") &&
