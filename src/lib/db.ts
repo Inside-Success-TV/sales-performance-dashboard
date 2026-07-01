@@ -35,6 +35,11 @@ import type {
 import type { NormalizedManualCallback, ManualSubmitPayload } from "@/lib/manual-reports";
 import type { PromptBenchmarkIngestPayload } from "@/lib/prompt-benchmark";
 import type { UsageEventPayload } from "@/lib/usage-events";
+import type {
+  AskSalesFaqConversationSummary,
+  AskSalesFaqFeedbackPayload,
+  AskSalesFaqLogPayload,
+} from "@/lib/ask-sales-faq/types";
 
 type SqlClient = ReturnType<typeof neon>;
 
@@ -200,6 +205,79 @@ async function buildSchema() {
   await sql`create index if not exists dashboard_usage_events_manual_public_id_idx on dashboard_usage_events (manual_public_id)`;
   await sql`create index if not exists dashboard_usage_events_viewer_email_created_idx on dashboard_usage_events (viewer_email, created_at desc)`;
   await sql`create index if not exists dashboard_usage_events_viewer_rep_created_idx on dashboard_usage_events (viewer_rep_slug, created_at desc)`;
+
+  await sql`
+    create table if not exists ask_sales_faq_conversations (
+      id text primary key,
+      viewer_email text not null,
+      viewer_name text,
+      title text,
+      status text not null default 'active' check (status in ('active', 'archived', 'deleted')),
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
+  await sql`create index if not exists ask_sales_faq_conversations_viewer_updated_idx on ask_sales_faq_conversations (viewer_email, updated_at desc)`;
+
+  await sql`
+    create table if not exists ask_sales_faq_messages (
+      id text primary key,
+      conversation_id text not null references ask_sales_faq_conversations(id) on delete cascade,
+      viewer_email text not null,
+      role text not null check (role in ('user', 'assistant', 'system_safe')),
+      content_redacted text not null,
+      content_hash text,
+      redaction_summary jsonb not null default '[]'::jsonb,
+      outcome text,
+      matched_article_id text,
+      source_label text,
+      source_last_reviewed text,
+      needs_route boolean not null default false,
+      route_reason text,
+      provider text,
+      model text,
+      latency_ms integer,
+      error_class text,
+      created_at timestamptz not null default now()
+    )
+  `;
+  await sql`create index if not exists ask_sales_faq_messages_conversation_created_idx on ask_sales_faq_messages (conversation_id, created_at asc)`;
+  await sql`create index if not exists ask_sales_faq_messages_viewer_created_idx on ask_sales_faq_messages (viewer_email, created_at desc)`;
+  await sql`create index if not exists ask_sales_faq_messages_outcome_created_idx on ask_sales_faq_messages (outcome, created_at desc)`;
+
+  await sql`
+    create table if not exists ask_sales_faq_feedback (
+      id text primary key,
+      message_id text not null references ask_sales_faq_messages(id) on delete cascade,
+      conversation_id text not null references ask_sales_faq_conversations(id) on delete cascade,
+      viewer_email text not null,
+      rating text not null check (rating in ('up', 'down')),
+      comment text,
+      created_at timestamptz not null default now(),
+      constraint ask_sales_faq_feedback_down_comment_required
+        check (rating <> 'down' or length(trim(coalesce(comment, ''))) > 0)
+    )
+  `;
+  await sql`create index if not exists ask_sales_faq_feedback_message_idx on ask_sales_faq_feedback (message_id)`;
+  await sql`create index if not exists ask_sales_faq_feedback_rating_created_idx on ask_sales_faq_feedback (rating, created_at desc)`;
+
+  await sql`
+    create table if not exists ask_sales_faq_misses (
+      id text primary key,
+      message_id text references ask_sales_faq_messages(id) on delete set null,
+      conversation_id text references ask_sales_faq_conversations(id) on delete cascade,
+      viewer_email text not null,
+      question_redacted text not null,
+      decision text not null,
+      route_reason text,
+      status text not null default 'new' check (status in ('new', 'reviewed', 'converted_to_article', 'ignored')),
+      reviewed_by text,
+      reviewed_at timestamptz,
+      created_at timestamptz not null default now()
+    )
+  `;
+  await sql`create index if not exists ask_sales_faq_misses_status_created_idx on ask_sales_faq_misses (status, created_at desc)`;
+  await sql`create index if not exists ask_sales_faq_misses_viewer_created_idx on ask_sales_faq_misses (viewer_email, created_at desc)`;
 
   await sql`
     create table if not exists sales_performance_snapshots (
@@ -2094,6 +2172,242 @@ export async function getManualFeedbackReport(publicId: string) {
     console.error(error);
     return null;
   }
+}
+
+export async function ensureAskSalesFaqStorage() {
+  if (!hasDatabase()) return false;
+  await ensureSchema();
+  return true;
+}
+
+export async function saveAskSalesFaqExchange(payload: AskSalesFaqLogPayload) {
+  await ensureSchema();
+  const sql = getSql();
+  const shouldCreateMiss =
+    payload.outcome !== "answer_from_approved_article" || payload.needsRoute || Boolean(payload.errorClass);
+
+  await sql.query(
+    `
+      insert into ask_sales_faq_conversations (
+        id,
+        viewer_email,
+        viewer_name,
+        title,
+        status,
+        updated_at
+      )
+      values ($1, $2, $3, $4, 'active', now())
+      on conflict (id) do update set
+        viewer_email = excluded.viewer_email,
+        viewer_name = excluded.viewer_name,
+        title = coalesce(ask_sales_faq_conversations.title, excluded.title),
+        updated_at = now()
+    `,
+    [payload.conversationId, payload.viewerEmail, payload.viewerName, payload.title],
+  );
+
+  await sql.query(
+    `
+      insert into ask_sales_faq_messages (
+        id,
+        conversation_id,
+        viewer_email,
+        role,
+        content_redacted,
+        redaction_summary,
+        created_at
+      )
+      values ($1, $2, $3, 'user', $4, $5::jsonb, now())
+      on conflict (id) do nothing
+    `,
+    [
+      payload.userMessageId,
+      payload.conversationId,
+      payload.viewerEmail,
+      payload.questionRedacted,
+      JSON.stringify(payload.redactions),
+    ],
+  );
+
+  await sql.query(
+    `
+      insert into ask_sales_faq_messages (
+        id,
+        conversation_id,
+        viewer_email,
+        role,
+        content_redacted,
+        redaction_summary,
+        outcome,
+        matched_article_id,
+        source_label,
+        source_last_reviewed,
+        needs_route,
+        route_reason,
+        provider,
+        model,
+        latency_ms,
+        error_class,
+        created_at
+      )
+      values ($1, $2, $3, 'assistant', $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now())
+      on conflict (id) do nothing
+    `,
+    [
+      payload.assistantMessageId,
+      payload.conversationId,
+      payload.viewerEmail,
+      payload.answerRedacted,
+      JSON.stringify(payload.redactions),
+      payload.outcome,
+      payload.matchedArticleId,
+      payload.sourceLabel,
+      payload.sourceLastReviewed,
+      payload.needsRoute,
+      payload.routeReason,
+      payload.provider,
+      payload.model,
+      payload.latencyMs,
+      payload.errorClass,
+    ],
+  );
+
+  if (shouldCreateMiss) {
+    await sql.query(
+      `
+        insert into ask_sales_faq_misses (
+          id,
+          message_id,
+          conversation_id,
+          viewer_email,
+          question_redacted,
+          decision,
+          route_reason,
+          status
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, 'new')
+        on conflict (id) do nothing
+      `,
+      [
+        `miss_${payload.assistantMessageId}`,
+        payload.assistantMessageId,
+        payload.conversationId,
+        payload.viewerEmail,
+        payload.questionRedacted,
+        payload.outcome,
+        payload.routeReason,
+      ],
+    );
+  }
+}
+
+export async function getAskSalesFaqConversations(
+  viewerEmail: string,
+  limit = 20,
+): Promise<AskSalesFaqConversationSummary[]> {
+  if (!hasDatabase()) return [];
+
+  await ensureSchema();
+  const sql = getSql();
+  const conversations = (await sql.query(
+    `
+      select
+        id,
+        title,
+        updated_at::text as updated_at
+      from ask_sales_faq_conversations
+      where viewer_email = $1
+        and status = 'active'
+      order by updated_at desc
+      limit $2
+    `,
+    [viewerEmail, Math.max(1, Math.min(limit, 50))],
+  )) as Array<{ id: string; title: string | null; updated_at: string }>;
+
+  const result: AskSalesFaqConversationSummary[] = [];
+  for (const conversation of conversations) {
+    const messages = (await sql.query(
+      `
+        select
+          id,
+          role,
+          content_redacted,
+          outcome,
+          source_label,
+          source_last_reviewed,
+          needs_route,
+          route_reason,
+          provider,
+          model,
+          created_at::text as created_at
+        from ask_sales_faq_messages
+        where conversation_id = $1
+        order by created_at asc
+      `,
+      [conversation.id],
+    )) as Array<{
+      id: string;
+      role: "user" | "assistant" | "system_safe";
+      content_redacted: string;
+      outcome: string | null;
+      source_label: string | null;
+      source_last_reviewed: string | null;
+      needs_route: boolean;
+      route_reason: string | null;
+      provider: string | null;
+      model: string | null;
+      created_at: string;
+    }>;
+
+    result.push({
+      id: conversation.id,
+      title: conversation.title,
+      updatedAt: conversation.updated_at,
+      messages: messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content_redacted,
+        outcome: message.outcome,
+        sourceLabel: message.source_label,
+        sourceLastReviewed: message.source_last_reviewed,
+        needsRoute: Boolean(message.needs_route),
+        routeReason: message.route_reason,
+        provider: message.provider,
+        model: message.model,
+        createdAt: message.created_at,
+      })),
+    });
+  }
+
+  return result;
+}
+
+export async function saveAskSalesFaqFeedback(payload: AskSalesFaqFeedbackPayload) {
+  await ensureSchema();
+  await getSql().query(
+    `
+      insert into ask_sales_faq_feedback (
+        id,
+        message_id,
+        conversation_id,
+        viewer_email,
+        rating,
+        comment
+      )
+      values ($1, $2, $3, $4, $5, $6)
+      on conflict (id) do update set
+        rating = excluded.rating,
+        comment = excluded.comment
+    `,
+    [
+      payload.id,
+      payload.messageId,
+      payload.conversationId,
+      payload.viewerEmail,
+      payload.rating,
+      payload.comment,
+    ],
+  );
 }
 
 function normalizeCall(call: PerformanceCall): PerformanceCall {
