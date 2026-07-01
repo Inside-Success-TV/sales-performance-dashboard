@@ -1093,9 +1093,13 @@ function MessageRow({
 }
 
 function StructuredAnswerCard({ answer }: { answer: AskSalesFaqStructuredAnswer }) {
+  const showSummary = !isDuplicatedSummary(answer);
+
   return (
     <div className="space-y-3">
-      <p className="text-[15.5px] font-semibold leading-[1.65] text-slate-800">{answer.summary}</p>
+      {showSummary ? (
+        <p className="text-[15.5px] font-semibold leading-[1.65] text-slate-800">{answer.summary}</p>
+      ) : null}
       <div className="space-y-2.5">
         {answer.sections.map((section, index) => (
           <AnswerSection key={`${section.title}-${index}`} section={section} />
@@ -1103,6 +1107,18 @@ function StructuredAnswerCard({ answer }: { answer: AskSalesFaqStructuredAnswer 
       </div>
     </div>
   );
+}
+
+function isDuplicatedSummary(answer: AskSalesFaqStructuredAnswer) {
+  const firstListSection = answer.sections.find((section) => (section.items?.length || 0) >= 5);
+  if (!firstListSection?.items?.length || answer.summary.length < 180) return false;
+
+  const normalizedSummary = answer.summary.toLowerCase();
+  const duplicatedItems = firstListSection.items
+    .slice(0, 6)
+    .filter((item) => normalizedSummary.includes(item.toLowerCase())).length;
+
+  return duplicatedItems >= 4;
 }
 
 function AnswerSection({ section }: { section: AskSalesFaqStructuredAnswer["sections"][number] }) {

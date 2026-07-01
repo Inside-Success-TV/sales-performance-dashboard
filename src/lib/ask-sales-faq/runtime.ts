@@ -200,7 +200,7 @@ export async function runAskSalesFaq(
   const startedAt = Date.now();
   const { text: sanitizedQuestion, redactions } = redactSensitiveText(question);
   const contextualQuestion = buildContextualQuestion(sanitizedQuestion, conversationMessages);
-  const decision = decideQuestion(contextualQuestion);
+  const decision = decideQuestion(sanitizedQuestion, contextualQuestion);
 
   if (decision.outcome === "admin_only") {
     return buildHandledResponse({
@@ -332,15 +332,15 @@ function buildDeterministicAnswer(input: {
   decision: RuntimeDecision;
 }): AskSalesFaqRuntimeResult | null {
   const articleId = input.decision.matchedArticleId;
-  const question = normalizeText(input.contextualQuestion);
+  const question = normalizeText(input.sanitizedQuestion);
 
   if (!articleId) return null;
 
   if (articleId === "current-show-source") {
-    const showList = APPROVED_SHOW_LIST.join(", ");
     const routeRequired = input.decision.outcome === "route_from_approved_article";
     const namedShow = APPROVED_SHOW_LIST.find((show) => phrasePresent(show, question));
-    let summary = `The latest approved show list I have is: ${showList}.`;
+    let summary =
+      "Here is the latest approved show list I have. If a show is newly added, paused, disputed, or missing from a dropdown, confirm it with the current sales/ops owner before giving a final answer.";
     const sections: AskSalesFaqStructuredAnswer["sections"] = [
       {
         title: "Current approved shows",
@@ -375,7 +375,7 @@ function buildDeterministicAnswer(input: {
       phrasePresent("$2,000", question);
     const nlceoQuestion = phrasePresent("next level ceo", question) || phrasePresent("daymond john", question);
     let summary =
-      "Main ISTV: Lite $12K, Standard $20K, VIP/Premium $30K. Next Level CEO: Lite $10K, Standard $15K, Premium VIP $20K, CEO Day upgrade +$5K.";
+      "For main ISTV, the packages are Lite at $12K, Standard at $20K, and VIP/Premium at $30K. Next Level CEO / Daymond John is a separate offer line: Lite $10K, Standard $15K, Premium VIP $20K, with a CEO Day upgrade for +$5K.";
     if (discountQuestion && nlceoQuestion) {
       summary = "The $2,000 same-day discount does not apply to Next Level CEO / Daymond John.";
     } else if (discountQuestion) {
@@ -387,16 +387,22 @@ function buildDeterministicAnswer(input: {
 
     const sections = [
       {
-        title: "Main ISTV pricing",
+        title: "Main ISTV packages",
         items: [
-          "Lite: $12,000. Plans: 4 x $3,000, 3 x $4,000, or 2 x $6,000.",
-          "Standard: $20,000. Plans: 4 x $5,000 or 2 x $10,000.",
-          "VIP/Premium: $30,000. Plans: 4 x $7,500, 3 x $10,000, or 2 x $15,000.",
+          "Lite: $12,000. Entry ISTV package with a 12-15 minute episode on the Inside Success Network app. Payment plans: 4 x $3,000, 3 x $4,000, or 2 x $6,000.",
+          "Standard: $20,000. Mid-tier ISTV package with a 16-20 minute episode and 100,000 pre-promo views. Payment plans: 4 x $5,000 or 2 x $10,000.",
+          "VIP/Premium: $30,000. Top ISTV package with a 20-25 minute episode, 150,000 pre-promo views, and submission to one Tier-1 platform if accepted. Payment plans: 4 x $7,500, 3 x $10,000, or 2 x $15,000.",
         ],
       },
       {
         title: "Next Level CEO / Daymond John",
-        items: ["Lite: $10,000.", "Standard: $15,000.", "Premium VIP: $20,000.", "CEO Day upgrade: +$5,000."],
+        items: [
+          "Lite: $10,000.",
+          "Standard: $15,000.",
+          "Premium VIP: $20,000.",
+          "CEO Day upgrade: +$5,000.",
+          "Keep this separate from main ISTV pricing and do not apply the main ISTV same-day discount to it.",
+        ],
       },
       {
         title: "Discount rule",
@@ -407,6 +413,15 @@ function buildDeterministicAnswer(input: {
           "Do not promise second-show, crossover, VIP-to-VIP, custom, or special discounts unless a current owner approves that exact case.",
         ],
         tone: "warning" as const,
+      },
+      {
+        title: "How to explain it on a call",
+        items: [
+          "Start with the package tier that fits the client, then quote the listed price and payment plan.",
+          "Do not invent custom splits, custom amounts, special discounts, or old package terms.",
+          "If the client asks for an exception or a deal not listed here, route it before promising anything.",
+        ],
+        tone: "good" as const,
       },
     ];
 
@@ -531,9 +546,10 @@ function buildDeterministicAnswer(input: {
   return null;
 }
 
-function decideQuestion(question: string): RuntimeDecision {
+function decideQuestion(question: string, contextualQuestion = question): RuntimeDecision {
   const retrieved = retrieveKnowledge(question, 10);
-  const rule = findMatchingRule(question);
+  const contextualRetrieved = contextualQuestion === question ? retrieved : retrieveKnowledge(contextualQuestion, 10);
+  const rule = findMatchingRule(question) || (contextualQuestion === question ? null : findMatchingRule(contextualQuestion));
 
   if (rule?.decision === "admin_only") {
     return {
@@ -547,7 +563,7 @@ function decideQuestion(question: string): RuntimeDecision {
       matchedRuleId: rule.id,
       matchedArticleId: rule.article_id || null,
       primaryArticle: null,
-      retrieved,
+      retrieved: mergeRetrieved(retrieved, contextualRetrieved),
     };
   }
 
@@ -571,7 +587,7 @@ function decideQuestion(question: string): RuntimeDecision {
       matchedRuleId: matchedRule.id,
       matchedArticleId: ruleArticle.id,
       primaryArticle: ruleArticle,
-      retrieved,
+      retrieved: mergeRetrieved(retrieved, contextualRetrieved),
     };
   }
 
@@ -588,7 +604,25 @@ function decideQuestion(question: string): RuntimeDecision {
       matchedRuleId: "semantic-approved-retrieval",
       matchedArticleId: article?.id || topApproved.article_id,
       primaryArticle: article,
-      retrieved,
+      retrieved: mergeRetrieved(retrieved, contextualRetrieved),
+    };
+  }
+
+  const contextualTopApproved = contextualQuestion === question ? null : firstApprovedRetrieved(contextualRetrieved);
+  if (contextualTopApproved && contextualTopApproved.score >= 5.6) {
+    const article = articleFromRetrieved(contextualTopApproved);
+    return {
+      outcome: "answer_from_approved_article",
+      sourceMode: "approved",
+      confidenceLabel: "Medium",
+      confidenceScore: Math.min(84, Math.round(50 + contextualTopApproved.score * 5)),
+      reason: "Follow-up context matched an approved FAQ article.",
+      routeReason: null,
+      safeToGenerate: true,
+      matchedRuleId: "semantic-approved-follow-up-retrieval",
+      matchedArticleId: article?.id || contextualTopApproved.article_id,
+      primaryArticle: article,
+      retrieved: mergeRetrieved(retrieved, contextualRetrieved),
     };
   }
 
@@ -605,7 +639,7 @@ function decideQuestion(question: string): RuntimeDecision {
       matchedRuleId: "semantic-evidence-retrieval",
       matchedArticleId: top.article_id,
       primaryArticle,
-      retrieved,
+      retrieved: mergeRetrieved(retrieved, contextualRetrieved),
     };
   }
 
@@ -621,7 +655,7 @@ function decideQuestion(question: string): RuntimeDecision {
       matchedRuleId: rule.id,
       matchedArticleId: null,
       primaryArticle: null,
-      retrieved,
+      retrieved: mergeRetrieved(retrieved, contextualRetrieved),
     };
   }
 
@@ -636,7 +670,7 @@ function decideQuestion(question: string): RuntimeDecision {
     matchedRuleId: "default-low-confidence-route",
     matchedArticleId: null,
     primaryArticle: null,
-    retrieved,
+    retrieved: mergeRetrieved(retrieved, contextualRetrieved),
   };
 }
 
@@ -710,6 +744,17 @@ function retrieveKnowledge(question: string, topK: number): RetrievedChunk[] {
 
 function firstApprovedRetrieved(retrieved: RetrievedChunk[]) {
   return retrieved.find((chunk) => chunk.source_type === "approved_article" && chunk.article_id);
+}
+
+function mergeRetrieved(primary: RetrievedChunk[], secondary: RetrievedChunk[]) {
+  const byId = new Map<string, RetrievedChunk>();
+  for (const chunk of [...primary, ...secondary]) {
+    const existing = byId.get(chunk.id);
+    if (!existing || chunk.score > existing.score) byId.set(chunk.id, chunk);
+  }
+  return Array.from(byId.values())
+    .sort((left, right) => right.score - left.score || right.authority - left.authority || left.id.localeCompare(right.id))
+    .slice(0, 10);
 }
 
 function articleFromRetrieved(chunk: RetrievedChunk | null | undefined) {
@@ -803,18 +848,19 @@ function structured(input: {
 
 function buildContextualQuestion(question: string, messages: AskSalesFaqChatMessage[]) {
   const normalized = normalizeText(question);
+  const tokens = normalized.split(" ").filter(Boolean);
+  const wordCount = tokens.length;
   const isFollowUp =
-    normalized.split(" ").filter(Boolean).length <= 7 ||
-    /^(what about|how about|and |also |for |what if|does that|can they|can we|is it|would that)/i.test(question.trim()) ||
-    /\b(it|that|this|they|them|those|same|there)\b/i.test(question);
+    /^(what about|how about|and\b|also\b|for\b|what if|does that|can they|can we|is it|would that)\b/i.test(question.trim()) ||
+    (wordCount <= 6 && /\b(it|that|this|they|them|those|same|there)\b/i.test(question));
 
   if (!isFollowUp) return question;
 
   const previous = messages
     .slice(0, -1)
     .filter((message) => message.content.trim())
-    .slice(-4)
-    .map((message) => `${message.role}: ${message.content.trim().slice(0, 700)}`)
+    .slice(-2)
+    .map((message) => `${message.role}: ${message.content.trim().slice(0, 240)}`)
     .join("\n");
 
   if (!previous) return question;

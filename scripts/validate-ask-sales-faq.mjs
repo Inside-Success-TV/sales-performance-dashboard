@@ -182,6 +182,33 @@ if (missingFiles.length === 0) {
   );
 
   addCheck(
+    "current question intent is not overwritten by old chat context",
+    runtime.includes("decideQuestion(sanitizedQuestion, contextualQuestion)") &&
+      runtime.includes("findMatchingRule(question)") &&
+      runtime.includes("findMatchingRule(contextualQuestion)") &&
+      !runtime.includes("const decision = decideQuestion(contextualQuestion)") &&
+      !runtime.includes("/\\b(it|that|this|they|them|those|same|there)\\b/i.test(question);"),
+    "runtime matches the latest user question first and restricts context to true follow-ups",
+  );
+
+  addCheck(
+    "show-list duplicate summary is suppressed",
+    chatUi.includes("isDuplicatedSummary") &&
+      chatUi.includes("duplicatedItems >= 4") &&
+      runtime.includes("Here is the latest approved show list I have."),
+    "show-list answers do not render the full list twice",
+  );
+
+  addCheck(
+    "pricing answer includes package descriptions",
+    runtime.includes("Entry ISTV package with a 12-15 minute episode") &&
+      runtime.includes("Mid-tier ISTV package with a 16-20 minute episode") &&
+      runtime.includes("Top ISTV package with a 20-25 minute episode") &&
+      runtime.includes("How to explain it on a call"),
+    "pricing answer explains package differences, payment plans, and call guidance",
+  );
+
+  addCheck(
     "structured answers are retained and rendered",
     chatRoute.includes("structuredAnswer: result.structuredAnswer") &&
       chatUi.includes("StructuredAnswerCard") &&
