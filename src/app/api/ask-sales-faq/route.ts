@@ -65,12 +65,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(buildSafeConfiguredResponse(conversationId, assistantMessageId));
     }
 
-    const result = await runAskSalesFaq(lastMessage.content);
+    const result = await runAskSalesFaq(lastMessage.content, messages);
     const response: AskSalesFaqResponse = {
       ok: true,
       conversationId,
       messageId: assistantMessageId,
       answer: result.answer,
+      structuredAnswer: result.structuredAnswer,
       outcome: result.outcome,
       source: result.source,
       model: result.model,
@@ -95,6 +96,7 @@ export async function POST(request: NextRequest) {
       matchedArticleId: result.matchedArticleId,
       sourceLabel: result.source?.label || null,
       sourceLastReviewed: result.source?.lastReviewed || null,
+      structuredAnswer: result.structuredAnswer,
       needsRoute: result.needsRoute,
       routeReason: result.routeReason,
       provider: result.provider,
@@ -123,6 +125,20 @@ function buildSafeConfiguredResponse(conversationId: string, messageId: string):
     messageId,
     answer:
       "Ask Sales FAQ is not fully available right now, so do not rely on a generated answer. Please check the approved source or route the question before replying.",
+    structuredAnswer: {
+      summary:
+        "Ask Sales FAQ is not fully available right now, so do not rely on a generated answer. Please check the approved source or route the question before replying.",
+      sections: [
+        {
+          title: "What to do",
+          items: ["Check the approved source.", "Route the question before replying to the prospect."],
+          tone: "route",
+        },
+      ],
+      confidenceLabel: "Low",
+      confidenceScore: 0,
+      sourceMode: "fallback",
+    },
     outcome: "safe_fallback",
     source: null,
     model: null,

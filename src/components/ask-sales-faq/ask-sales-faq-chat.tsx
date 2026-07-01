@@ -36,13 +36,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { APPROVED_FAQ_ARTICLES, type ApprovedFaqArticle } from "@/lib/ask-sales-faq/generated/approved-faq-bundle";
-import type { AskSalesFaqConversationSummary, AskSalesFaqResponse } from "@/lib/ask-sales-faq/types";
+import type {
+  AskSalesFaqConversationSummary,
+  AskSalesFaqResponse,
+  AskSalesFaqStructuredAnswer,
+} from "@/lib/ask-sales-faq/types";
 import { cn } from "@/lib/utils";
 
 type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  structuredAnswer?: AskSalesFaqStructuredAnswer | null;
   outcome?: string | null;
   sourceLabel?: string | null;
   sourceLastReviewed?: string | null;
@@ -239,6 +244,7 @@ export function AskSalesFaqChat() {
           id: message.id,
           role: message.role as "user" | "assistant",
           content: message.content,
+          structuredAnswer: message.structuredAnswer,
           outcome: message.outcome,
           sourceLabel: message.sourceLabel,
           sourceLastReviewed: message.sourceLastReviewed,
@@ -373,6 +379,7 @@ export function AskSalesFaqChat() {
           id: data.messageId || `local-assistant-${Date.now()}`,
           role: "assistant",
           content: data.answer || "",
+          structuredAnswer: data.structuredAnswer || null,
           outcome: data.outcome,
           sourceLabel: data.source?.label || null,
           sourceLastReviewed: data.source?.lastReviewed || null,
@@ -396,6 +403,13 @@ export function AskSalesFaqChat() {
           id: `local-safe-${Date.now()}`,
           role: "assistant",
           content: "Ask Sales FAQ could not answer reliably right now. Please route the question instead of guessing.",
+          structuredAnswer: {
+            summary: "Ask Sales FAQ could not answer reliably right now. Please route the question instead of guessing.",
+            sections: [{ title: "What to do", items: ["Route the question instead of guessing."], tone: "route" }],
+            confidenceLabel: "Low",
+            confidenceScore: 0,
+            sourceMode: "fallback",
+          },
           outcome: "safe_fallback",
           needsRoute: true,
           routeReason: message,
@@ -1051,7 +1065,12 @@ function MessageRow({
       </span>
       <div className="min-w-0 flex-1 pt-1">
         <p className="mb-1.5 text-xs font-bold uppercase tracking-[0.1em] text-slate-400">Sales FAQ</p>
-        {isRouteOrBlocked(message) && message.outcome !== "route_from_approved_article" ? (
+        {message.structuredAnswer ? (
+          <>
+            <StructuredAnswerCard answer={message.structuredAnswer} />
+            {message.needsRoute && message.routeReason ? <RouteNote reason={message.routeReason} /> : null}
+          </>
+        ) : isRouteOrBlocked(message) && message.outcome !== "route_from_approved_article" ? (
           <SafeCallout message={message} />
         ) : (
           <>
@@ -1069,6 +1088,47 @@ function MessageRow({
           onSubmitNegative={onSubmitNegative}
         />
       </div>
+    </div>
+  );
+}
+
+function StructuredAnswerCard({ answer }: { answer: AskSalesFaqStructuredAnswer }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-[15.5px] font-semibold leading-[1.65] text-slate-800">{answer.summary}</p>
+      <div className="space-y-2.5">
+        {answer.sections.map((section, index) => (
+          <AnswerSection key={`${section.title}-${index}`} section={section} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AnswerSection({ section }: { section: AskSalesFaqStructuredAnswer["sections"][number] }) {
+  const toneClass =
+    section.tone === "warning"
+      ? "border-amber-200 bg-amber-50/80"
+      : section.tone === "route"
+        ? "border-orange-200 bg-orange-50/75"
+        : section.tone === "good"
+          ? "border-emerald-200 bg-emerald-50/70"
+          : "border-slate-200 bg-white/82";
+
+  return (
+    <div className={cn("rounded-2xl border px-4 py-3", toneClass)}>
+      <h3 className="text-[13px] font-extrabold tracking-normal text-slate-900">{section.title}</h3>
+      {section.body ? <p className="mt-1.5 text-[14.5px] font-medium leading-6 text-slate-700">{section.body}</p> : null}
+      {section.items?.length ? (
+        <ul className="mt-2 space-y-1.5">
+          {section.items.map((item, index) => (
+            <li key={`${item}-${index}`} className="flex items-start gap-2.5 text-[14.5px] font-medium leading-6 text-slate-700">
+              <span className="mt-[9px] size-1.5 shrink-0 rounded-full bg-[#DC2626]" />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -1155,6 +1215,11 @@ function SourceDisclosure({ message }: { message: ChatMessage }) {
               {message.sourceLabel ? <p className="text-sm font-bold text-slate-800">{message.sourceLabel}</p> : null}
               {message.sourceLastReviewed ? (
                 <p className="mt-0.5 text-[12.5px] font-semibold text-slate-400">Last reviewed: {message.sourceLastReviewed}</p>
+              ) : null}
+              {message.structuredAnswer ? (
+                <p className="mt-0.5 text-[12.5px] font-semibold text-slate-400">
+                  Confidence: {message.structuredAnswer.confidenceLabel} ({message.structuredAnswer.confidenceScore}/100)
+                </p>
               ) : null}
               {message.sourceDetails ? <p className="mt-2 text-[12.5px] font-medium leading-5 text-slate-500">{message.sourceDetails}</p> : null}
             </div>

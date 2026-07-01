@@ -8,6 +8,9 @@ export type AskSalesFaqChatMessage = {
 export type AskSalesFaqOutcome =
   | "answer_from_approved_article"
   | "route_from_approved_article"
+  | "answer_from_evidence"
+  | "route_from_evidence"
+  | "low_confidence_route"
   | "abstain_unapproved"
   | "admin_only"
   | "safe_fallback"
@@ -18,8 +21,26 @@ export type AskSalesFaqOutcome =
 export type AskSalesFaqSourceSummary = {
   label: string;
   lastReviewed: string;
-  approved: true;
+  approved: boolean;
+  sourceMode?: "approved" | "evidence" | "mixed" | "fallback";
+  confidenceLabel?: "High" | "Medium" | "Low";
+  confidenceScore?: number;
   expandableDetails?: string;
+};
+
+export type AskSalesFaqAnswerSection = {
+  title: string;
+  body?: string;
+  items?: string[];
+  tone?: "default" | "good" | "warning" | "route";
+};
+
+export type AskSalesFaqStructuredAnswer = {
+  summary: string;
+  sections: AskSalesFaqAnswerSection[];
+  confidenceLabel: "High" | "Medium" | "Low";
+  confidenceScore: number;
+  sourceMode: "approved" | "evidence" | "mixed" | "fallback";
 };
 
 export type AskSalesFaqResponse = {
@@ -27,6 +48,7 @@ export type AskSalesFaqResponse = {
   conversationId: string;
   messageId: string;
   answer: string;
+  structuredAnswer?: AskSalesFaqStructuredAnswer | null;
   outcome: AskSalesFaqOutcome;
   source: AskSalesFaqSourceSummary | null;
   model: string | null;
@@ -48,6 +70,7 @@ export type AskSalesFaqConversationSummary = {
     outcome: string | null;
     sourceLabel: string | null;
     sourceLastReviewed: string | null;
+    structuredAnswer?: AskSalesFaqStructuredAnswer | null;
     needsRoute: boolean;
     routeReason: string | null;
     provider: string | null;
@@ -70,6 +93,7 @@ export type AskSalesFaqLogPayload = {
   matchedArticleId: string | null;
   sourceLabel: string | null;
   sourceLastReviewed: string | null;
+  structuredAnswer?: AskSalesFaqStructuredAnswer | null;
   needsRoute: boolean;
   routeReason: string | null;
   provider: string | null;
@@ -104,4 +128,40 @@ export type AskSalesFaqFeedbackContext = {
   provider: string | null;
   model: string | null;
   createdAt: string | null;
+};
+
+export type AskSalesFaqAdminMetric = {
+  label: string;
+  value: number;
+  helper: string;
+  tone: "default" | "good" | "warning";
+};
+
+export type AskSalesFaqAdminLogItem = {
+  id: string;
+  createdAt: string;
+  viewerEmail: string;
+  question: string | null;
+  answer?: string | null;
+  outcome?: string | null;
+  decision?: string | null;
+  sourceLabel?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  needsRoute?: boolean;
+  routeReason?: string | null;
+  confidenceLabel?: string | null;
+  confidenceScore?: number | null;
+  sourceMode?: string | null;
+  rating?: "up" | "down";
+  comment?: string | null;
+  status?: string | null;
+};
+
+export type AskSalesFaqAdminOverview = {
+  generatedAt: string;
+  metrics: AskSalesFaqAdminMetric[];
+  recentMisses: AskSalesFaqAdminLogItem[];
+  recentFeedback: AskSalesFaqAdminLogItem[];
+  recentAnswers: AskSalesFaqAdminLogItem[];
 };

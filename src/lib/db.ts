@@ -37,9 +37,12 @@ import type { PromptBenchmarkIngestPayload } from "@/lib/prompt-benchmark";
 import type { UsageEventPayload } from "@/lib/usage-events";
 import type {
   AskSalesFaqConversationSummary,
+  AskSalesFaqAdminOverview,
+  AskSalesFaqAdminLogItem,
   AskSalesFaqFeedbackContext,
   AskSalesFaqFeedbackPayload,
   AskSalesFaqLogPayload,
+  AskSalesFaqStructuredAnswer,
 } from "@/lib/ask-sales-faq/types";
 
 type SqlClient = ReturnType<typeof neon>;
@@ -237,6 +240,7 @@ async function buildSchema() {
       matched_article_id text,
       source_label text,
       source_last_reviewed text,
+      answer_payload jsonb,
       needs_route boolean not null default false,
       route_reason text,
       provider text,
@@ -246,6 +250,7 @@ async function buildSchema() {
       created_at timestamptz not null default now()
     )
   `;
+  await sql`alter table ask_sales_faq_messages add column if not exists answer_payload jsonb`;
   await sql`create index if not exists ask_sales_faq_messages_conversation_created_idx on ask_sales_faq_messages (conversation_id, created_at asc)`;
   await sql`create index if not exists ask_sales_faq_messages_viewer_created_idx on ask_sales_faq_messages (viewer_email, created_at desc)`;
   await sql`create index if not exists ask_sales_faq_messages_outcome_created_idx on ask_sales_faq_messages (outcome, created_at desc)`;
@@ -2247,6 +2252,7 @@ export async function saveAskSalesFaqExchange(payload: AskSalesFaqLogPayload) {
         matched_article_id,
         source_label,
         source_last_reviewed,
+        answer_payload,
         needs_route,
         route_reason,
         provider,
@@ -2255,7 +2261,7 @@ export async function saveAskSalesFaqExchange(payload: AskSalesFaqLogPayload) {
         error_class,
         created_at
       )
-      values ($1, $2, $3, 'assistant', $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now())
+      values ($1, $2, $3, 'assistant', $4, $5::jsonb, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, $14, $15, $16, now())
       on conflict (id) do nothing
     `,
     [
@@ -2268,6 +2274,7 @@ export async function saveAskSalesFaqExchange(payload: AskSalesFaqLogPayload) {
       payload.matchedArticleId,
       payload.sourceLabel,
       payload.sourceLastReviewed,
+      payload.structuredAnswer ? JSON.stringify(payload.structuredAnswer) : null,
       payload.needsRoute,
       payload.routeReason,
       payload.provider,
@@ -2340,6 +2347,7 @@ export async function getAskSalesFaqConversations(
           outcome,
           source_label,
           source_last_reviewed,
+          answer_payload,
           needs_route,
           route_reason,
           provider,
@@ -2357,6 +2365,7 @@ export async function getAskSalesFaqConversations(
       outcome: string | null;
       source_label: string | null;
       source_last_reviewed: string | null;
+      answer_payload: unknown;
       needs_route: boolean;
       route_reason: string | null;
       provider: string | null;
@@ -2375,6 +2384,7 @@ export async function getAskSalesFaqConversations(
         outcome: message.outcome,
         sourceLabel: message.source_label,
         sourceLastReviewed: message.source_last_reviewed,
+        structuredAnswer: normalizeAskSalesFaqAnswerPayload(message.answer_payload),
         needsRoute: Boolean(message.needs_route),
         routeReason: message.route_reason,
         provider: message.provider,
@@ -2385,6 +2395,36 @@ export async function getAskSalesFaqConversations(
   }
 
   return result;
+}
+
+function normalizeAskSalesFaqAnswerPayload(value: unknown): AskSalesFaqStructuredAnswer | null {
+  if (!value || typeof value !== "object") return null;
+  const payload = value as Partial<AskSalesFaqStructuredAnswer>;
+  if (typeof payload.summary !== "string" || !Array.isArray(payload.sections)) return null;
+  if (!["High", "Medium", "Low"].includes(String(payload.confidenceLabel))) return null;
+  if (!["approved", "evidence", "mixed", "fallback"].includes(String(payload.sourceMode))) return null;
+
+  const sections = payload.sections
+    .filter((section) => section && typeof section === "object" && typeof section.title === "string")
+    .map((section) => {
+      const candidate = section as AskSalesFaqStructuredAnswer["sections"][number];
+      return {
+        title: candidate.title,
+        body: typeof candidate.body === "string" ? candidate.body : undefined,
+        items: Array.isArray(candidate.items)
+          ? candidate.items.filter((item): item is string => typeof item === "string")
+          : undefined,
+        tone: candidate.tone,
+      };
+    });
+
+  return {
+    summary: payload.summary,
+    sections,
+    confidenceLabel: payload.confidenceLabel as AskSalesFaqStructuredAnswer["confidenceLabel"],
+    confidenceScore: typeof payload.confidenceScore === "number" ? payload.confidenceScore : 0,
+    sourceMode: payload.sourceMode as AskSalesFaqStructuredAnswer["sourceMode"],
+  };
 }
 
 export async function renameAskSalesFaqConversation(payload: {
@@ -2564,6 +2604,276 @@ export async function getAskSalesFaqFeedbackContext(payload: {
     provider: row.provider,
     model: row.model,
     createdAt: row.created_at,
+  };
+}
+
+export async function getAskSalesFaqAdminOverview(limit = 25): Promise<AskSalesFaqAdminOverview> {
+  const empty: AskSalesFaqAdminOverview = {
+    generatedAt: new Date().toISOString(),
+    metrics: [
+      { label: "Answers, 7d", value: 0, helper: "Assistant replies saved to Neon.", tone: "default" },
+      { label: "Needs review", value: 0, helper: "New misses or routed answers needing admin review.", tone: "warning" },
+      { label: "Thumbs down, 7d", value: 0, helper: "Negative feedback requiring a comment.", tone: "warning" },
+      { label: "Evidence answers, 7d", value: 0, helper: "Answers that used source evidence beyond deterministic approved rules.", tone: "default" },
+    ],
+    recentMisses: [],
+    recentFeedback: [],
+    recentAnswers: [],
+  };
+
+  if (!hasDatabase()) return empty;
+
+  await ensureSchema();
+  const sql = getSql();
+  const normalizedLimit = Math.max(5, Math.min(limit, 50));
+
+  const [metricRow] = (await sql.query(`
+    select
+      (
+        select count(*)::int
+        from ask_sales_faq_messages
+        where role = 'assistant'
+          and created_at >= now() - interval '7 days'
+      ) as answers_7d,
+      (
+        select count(*)::int
+        from ask_sales_faq_misses
+        where status = 'new'
+      ) as needs_review,
+      (
+        select count(*)::int
+        from ask_sales_faq_feedback
+        where rating = 'down'
+          and created_at >= now() - interval '7 days'
+      ) as thumbs_down_7d,
+      (
+        select count(*)::int
+        from ask_sales_faq_messages
+        where role = 'assistant'
+          and created_at >= now() - interval '7 days'
+          and (
+            outcome in ('answer_from_evidence', 'route_from_evidence', 'low_confidence_route')
+            or answer_payload->>'sourceMode' in ('evidence', 'mixed')
+          )
+      ) as evidence_answers_7d
+  `)) as Array<{
+    answers_7d: number;
+    needs_review: number;
+    thumbs_down_7d: number;
+    evidence_answers_7d: number;
+  }>;
+
+  const recentMisses = (await sql.query(
+    `
+      select
+        id,
+        coalesce(message_id, '') as message_id,
+        conversation_id,
+        viewer_email,
+        question_redacted,
+        decision,
+        route_reason,
+        status,
+        created_at::text as created_at
+      from ask_sales_faq_misses
+      order by created_at desc
+      limit $1
+    `,
+    [normalizedLimit],
+  )) as Array<{
+    id: string;
+    message_id: string;
+    conversation_id: string;
+    viewer_email: string;
+    question_redacted: string;
+    decision: string;
+    route_reason: string | null;
+    status: string;
+    created_at: string;
+  }>;
+
+  const recentFeedback = (await sql.query(
+    `
+      with feedback as (
+        select *
+        from ask_sales_faq_feedback
+        order by created_at desc
+        limit $1
+      )
+      select
+        f.id,
+        f.message_id,
+        f.conversation_id,
+        f.viewer_email,
+        f.rating,
+        f.comment,
+        f.created_at::text as created_at,
+        a.content_redacted as answer,
+        a.outcome,
+        a.source_label,
+        a.needs_route,
+        a.route_reason,
+        a.provider,
+        a.model,
+        (
+          select u.content_redacted
+          from ask_sales_faq_messages u
+          where u.conversation_id = f.conversation_id
+            and u.role = 'user'
+            and u.created_at <= a.created_at
+          order by u.created_at desc
+          limit 1
+        ) as question
+      from feedback f
+      left join ask_sales_faq_messages a on a.id = f.message_id
+      order by f.created_at desc
+    `,
+    [normalizedLimit],
+  )) as Array<{
+    id: string;
+    message_id: string;
+    conversation_id: string;
+    viewer_email: string;
+    rating: "up" | "down";
+    comment: string | null;
+    created_at: string;
+    question: string | null;
+    answer: string | null;
+    outcome: string | null;
+    source_label: string | null;
+    needs_route: boolean | null;
+    route_reason: string | null;
+    provider: string | null;
+    model: string | null;
+  }>;
+
+  const recentAnswers = (await sql.query(
+    `
+      with assistant as (
+        select *
+        from ask_sales_faq_messages
+        where role = 'assistant'
+        order by created_at desc
+        limit $1
+      )
+      select
+        a.id,
+        a.conversation_id,
+        a.viewer_email,
+        a.content_redacted as answer,
+        a.outcome,
+        a.source_label,
+        a.needs_route,
+        a.route_reason,
+        a.provider,
+        a.model,
+        a.answer_payload->>'confidenceLabel' as confidence_label,
+        case
+          when (a.answer_payload->>'confidenceScore') ~ '^[0-9]+(\\.[0-9]+)?$'
+          then (a.answer_payload->>'confidenceScore')::float
+          else null
+        end as confidence_score,
+        a.answer_payload->>'sourceMode' as source_mode,
+        a.created_at::text as created_at,
+        (
+          select u.content_redacted
+          from ask_sales_faq_messages u
+          where u.conversation_id = a.conversation_id
+            and u.role = 'user'
+            and u.created_at <= a.created_at
+          order by u.created_at desc
+          limit 1
+        ) as question
+      from assistant a
+      order by a.created_at desc
+    `,
+    [normalizedLimit],
+  )) as Array<{
+    id: string;
+    conversation_id: string;
+    viewer_email: string;
+    question: string | null;
+    answer: string | null;
+    outcome: string | null;
+    source_label: string | null;
+    needs_route: boolean | null;
+    route_reason: string | null;
+    provider: string | null;
+    model: string | null;
+    confidence_label: string | null;
+    confidence_score: number | null;
+    source_mode: string | null;
+    created_at: string;
+  }>;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    metrics: [
+      {
+        label: "Answers, 7d",
+        value: Number(metricRow?.answers_7d || 0),
+        helper: "Assistant replies saved to Neon.",
+        tone: "default",
+      },
+      {
+        label: "Needs review",
+        value: Number(metricRow?.needs_review || 0),
+        helper: "New misses or routed answers needing admin review.",
+        tone: Number(metricRow?.needs_review || 0) > 0 ? "warning" : "good",
+      },
+      {
+        label: "Thumbs down, 7d",
+        value: Number(metricRow?.thumbs_down_7d || 0),
+        helper: "Negative feedback requiring a comment.",
+        tone: Number(metricRow?.thumbs_down_7d || 0) > 0 ? "warning" : "good",
+      },
+      {
+        label: "Evidence answers, 7d",
+        value: Number(metricRow?.evidence_answers_7d || 0),
+        helper: "Answers that used source evidence beyond deterministic approved rules.",
+        tone: "default",
+      },
+    ],
+    recentMisses: recentMisses.map((item): AskSalesFaqAdminLogItem => ({
+      id: item.id,
+      createdAt: item.created_at,
+      viewerEmail: item.viewer_email,
+      question: item.question_redacted,
+      decision: item.decision,
+      routeReason: item.route_reason,
+      status: item.status,
+    })),
+    recentFeedback: recentFeedback.map((item): AskSalesFaqAdminLogItem => ({
+      id: item.id,
+      createdAt: item.created_at,
+      viewerEmail: item.viewer_email,
+      question: item.question,
+      answer: item.answer,
+      outcome: item.outcome,
+      sourceLabel: item.source_label,
+      needsRoute: Boolean(item.needs_route),
+      routeReason: item.route_reason,
+      provider: item.provider,
+      model: item.model,
+      rating: item.rating,
+      comment: item.comment,
+    })),
+    recentAnswers: recentAnswers.map((item): AskSalesFaqAdminLogItem => ({
+      id: item.id,
+      createdAt: item.created_at,
+      viewerEmail: item.viewer_email,
+      question: item.question,
+      answer: item.answer,
+      outcome: item.outcome,
+      sourceLabel: item.source_label,
+      needsRoute: Boolean(item.needs_route),
+      routeReason: item.route_reason,
+      provider: item.provider,
+      model: item.model,
+      confidenceLabel: item.confidence_label,
+      confidenceScore: item.confidence_score,
+      sourceMode: item.source_mode,
+    })),
   };
 }
 
