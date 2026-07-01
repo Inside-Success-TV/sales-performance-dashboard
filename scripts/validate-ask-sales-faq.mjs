@@ -199,8 +199,11 @@ if (missingFiles.length === 0) {
     runtime.includes("confidence_score must be an integer from 0 to 100") &&
       runtime.includes("parseConfidenceScore") &&
       runtime.includes("confidenceLabelFromScore") &&
-      runtime.includes("numericValue >= 0 && numericValue <= 1 ? numericValue * 100 : numericValue"),
-    "model confidence is normalized from decimal scale to 0-100 and label is aligned to score",
+      runtime.includes("numericValue >= 0 && numericValue <= 1 ? numericValue * 100 : numericValue") &&
+      db.includes("normalizeAskSalesFaqConfidenceScore") &&
+      db.includes("askSalesFaqConfidenceLabelFromScore") &&
+      db.includes("confidenceScore === null ? item.confidence_label : askSalesFaqConfidenceLabelFromScore(confidenceScore)"),
+    "model and stored confidence are normalized from decimal scale to 0-100 and label is aligned to score",
   );
 
   addCheck(

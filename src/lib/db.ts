@@ -2403,6 +2403,7 @@ function normalizeAskSalesFaqAnswerPayload(value: unknown): AskSalesFaqStructure
   if (typeof payload.summary !== "string" || !Array.isArray(payload.sections)) return null;
   if (!["High", "Medium", "Low"].includes(String(payload.confidenceLabel))) return null;
   if (!["approved", "evidence", "mixed", "fallback"].includes(String(payload.sourceMode))) return null;
+  const confidenceScore = normalizeAskSalesFaqConfidenceScore(payload.confidenceScore);
 
   const sections = payload.sections
     .filter((section) => section && typeof section === "object" && typeof section.title === "string")
@@ -2421,10 +2422,26 @@ function normalizeAskSalesFaqAnswerPayload(value: unknown): AskSalesFaqStructure
   return {
     summary: payload.summary,
     sections,
-    confidenceLabel: payload.confidenceLabel as AskSalesFaqStructuredAnswer["confidenceLabel"],
-    confidenceScore: typeof payload.confidenceScore === "number" ? payload.confidenceScore : 0,
+    confidenceLabel:
+      confidenceScore === null
+        ? (payload.confidenceLabel as AskSalesFaqStructuredAnswer["confidenceLabel"])
+        : askSalesFaqConfidenceLabelFromScore(confidenceScore),
+    confidenceScore: confidenceScore ?? 0,
     sourceMode: payload.sourceMode as AskSalesFaqStructuredAnswer["sourceMode"],
   };
+}
+
+function normalizeAskSalesFaqConfidenceScore(value: unknown) {
+  const numericValue = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  if (!Number.isFinite(numericValue)) return null;
+  const scaledValue = numericValue >= 0 && numericValue <= 1 ? numericValue * 100 : numericValue;
+  return Math.max(0, Math.min(100, Math.round(scaledValue)));
+}
+
+function askSalesFaqConfidenceLabelFromScore(score: number): AskSalesFaqStructuredAnswer["confidenceLabel"] {
+  if (score >= 80) return "High";
+  if (score >= 50) return "Medium";
+  return "Low";
 }
 
 export async function renameAskSalesFaqConversation(payload: {
@@ -2858,22 +2875,25 @@ export async function getAskSalesFaqAdminOverview(limit = 25): Promise<AskSalesF
       rating: item.rating,
       comment: item.comment,
     })),
-    recentAnswers: recentAnswers.map((item): AskSalesFaqAdminLogItem => ({
-      id: item.id,
-      createdAt: item.created_at,
-      viewerEmail: item.viewer_email,
-      question: item.question,
-      answer: item.answer,
-      outcome: item.outcome,
-      sourceLabel: item.source_label,
-      needsRoute: Boolean(item.needs_route),
-      routeReason: item.route_reason,
-      provider: item.provider,
-      model: item.model,
-      confidenceLabel: item.confidence_label,
-      confidenceScore: item.confidence_score,
-      sourceMode: item.source_mode,
-    })),
+    recentAnswers: recentAnswers.map((item): AskSalesFaqAdminLogItem => {
+      const confidenceScore = normalizeAskSalesFaqConfidenceScore(item.confidence_score);
+      return {
+        id: item.id,
+        createdAt: item.created_at,
+        viewerEmail: item.viewer_email,
+        question: item.question,
+        answer: item.answer,
+        outcome: item.outcome,
+        sourceLabel: item.source_label,
+        needsRoute: Boolean(item.needs_route),
+        routeReason: item.route_reason,
+        provider: item.provider,
+        model: item.model,
+        confidenceLabel: confidenceScore === null ? item.confidence_label : askSalesFaqConfidenceLabelFromScore(confidenceScore),
+        confidenceScore,
+        sourceMode: item.source_mode,
+      };
+    }),
   };
 }
 
